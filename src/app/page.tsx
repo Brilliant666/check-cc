@@ -7,7 +7,7 @@ import { messages, type LocaleCode } from "@/i18n/messages";
 
 export const metadata: Metadata = {
   title: "检查 Claude 封号风险",
-  description: "AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
+  description: "浏览器环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
 };
 
 const pageMax = "mx-auto w-full max-w-[1440px] px-5 md:px-8 2xl:max-w-[1536px] min-[1800px]:max-w-[1760px] min-[1920px]:max-w-[1920px] min-[2400px]:max-w-[2200px]";

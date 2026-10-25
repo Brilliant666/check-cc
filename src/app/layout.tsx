@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     default: "检查 Claude 封号风险",
     template: "%s｜CheckCC",
   },
-  description: "AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
+  description: "浏览器环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
   alternates: {
     canonical: "/",
     languages: {
@@ -23,13 +23,13 @@ export const metadata: Metadata = {
     url: "https://checkcc.org",
     siteName: "CheckCC",
     title: "检查 Claude 封号风险",
-    description: "AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
+    description: "浏览器环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
     locale: "zh_CN",
   },
   twitter: {
     card: "summary_large_image",
     title: "检查 Claude 封号风险",
-    description: "AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
+    description: "浏览器环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
   },
   robots: {
     index: true,

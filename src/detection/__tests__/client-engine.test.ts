@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { messages } from "../../i18n/messages";
-import { isPublicIp, makeSignalScore, normalizeRegion, summarizeSignals } from "../client-engine";
+import { collectBrowserSignals, isPublicIp, languageRisk, localeRisk, makeSignalScore, normalizeRegion, summarizeSignals, timezoneRisk } from "../client-engine";
 import { detectionConfig } from "../config";
 import { detectorLocaleText } from "../locale";
 import type { SignalResult } from "../types";
@@ -147,7 +147,7 @@ describe("isPublicIp", () => {
 
 describe("locale content", () => {
   it("avoids unsupported launch claims in every locale", () => {
-    const banned = ["独家", "完美支持", "完美支援", "Fully supported", "Полная поддержка", "Google Analytics", "支付地区", "付款地区", "payment-region", "платежного региона", "subscription availability", "账号可信度", "Account trust", "Доверие аккаунта"];
+    const banned = ["独家", "完美支持", "完美支援", "Fully supported", "Полная поддержка", "Google Analytics", "支付地区", "付款地区", "payment-region", "платежного региона", "subscription availability", "账号可信度", "Account trust", "Доверие аккаунта", "AI 环境", "AI 環境", "AI-движок", "AI environment"];
     const serialized = JSON.stringify(messages);
     for (const phrase of banned) expect(serialized).not.toContain(phrase);
     for (const text of Object.values(detectorLocaleText)) {
@@ -188,5 +188,82 @@ describe("normalizeRegion", () => {
   it("collapses hong kong to automatic detection", () => {
     expect(normalizeRegion("hk")).toBe("auto");
     expect(normalizeRegion("cn")).toBe("cn");
+  });
+});
+
+describe("region risk helpers", () => {
+  it("matches timezones against the selected region", () => {
+    expect(timezoneRisk("Asia/Shanghai", "auto")).toBe(1);
+    expect(timezoneRisk("Asia/Shanghai", "cn")).toBe(1);
+    expect(timezoneRisk("Europe/Moscow", "ru")).toBe(1);
+    expect(timezoneRisk("Europe/Moscow", "cn")).toBe(0);
+    expect(timezoneRisk("Asia/Tehran", "ir")).toBe(1);
+    expect(timezoneRisk("Asia/Hong_Kong", "auto")).toBe(0.6);
+    expect(timezoneRisk("Asia/Hong_Kong", "ru")).toBe(0);
+    expect(timezoneRisk(null, "auto")).toBe(0);
+  });
+
+  it("matches language signals against the selected region", () => {
+    expect(languageRisk(["zh-CN"], "cn")).toBe(1);
+    expect(languageRisk(["zh-TW"], "auto")).toBe(0.5);
+    expect(languageRisk(["ru-RU"], "ru")).toBe(1);
+    expect(languageRisk(["ru-RU"], "cn")).toBe(0);
+    expect(languageRisk(["fa-IR"], "ir")).toBe(1);
+    expect(languageRisk(["en-US"], "auto")).toBe(0);
+  });
+
+  it("matches Intl locale against the selected region", () => {
+    expect(localeRisk("zh-CN", "cn")).toBe(1);
+    expect(localeRisk("zh-HK", "auto")).toBe(0.5);
+    expect(localeRisk("ru-RU", "ru")).toBe(1);
+    expect(localeRisk("ru-RU", "cn")).toBe(0);
+    expect(localeRisk("fa-IR", "ir")).toBe(1);
+    expect(localeRisk("en-US", "auto")).toBe(0);
+    expect(localeRisk(null, "auto")).toBe(0);
+  });
+});
+
+describe("collectBrowserSignals", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubCanvas() {
+    vi.stubGlobal("document", {
+      createElement: () => ({ getContext: () => ({ font: "", measureText: () => ({ width: 10 }) }) }),
+    });
+  }
+
+  it("evaluates Russian signals when Russia is the selected target", () => {
+    stubCanvas();
+    const result = collectBrowserSignals(
+      "ru",
+      detectorLocaleText.zh,
+      detectionConfig,
+      { languages: ["ru-RU"], timezone: "Europe/Moscow", locale: "ru-RU", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 YaBrowser/24.1 Chrome/120", platform: "Windows", brands: "Yandex" },
+    );
+    const byId = Object.fromEntries(result.signals.map((item) => [item.id, item]));
+
+    expect(byId.timezone.contribution).toBe(26);
+    expect(byId.language.contribution).toBe(20);
+    expect(byId.locale.contribution).toBe(6);
+    expect(byId.domesticBrowser.contribution).toBe(8);
+    expect(byId.languageVariant.contribution).toBe(0);
+    expect(byId.chineseFonts.contribution).toBe(0);
+    expect(byId.timezoneOffset.contribution).toBe(0);
+  });
+
+  it("keeps Chinese signals scored when mainland China is the selected target", () => {
+    stubCanvas();
+    const result = collectBrowserSignals(
+      "cn",
+      detectorLocaleText.zh,
+      detectionConfig,
+      { languages: ["zh-CN", "zh"], timezone: "Asia/Shanghai", locale: "zh-CN", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120", platform: "Windows", brands: "Google Chrome" },
+    );
+    const byId = Object.fromEntries(result.signals.map((item) => [item.id, item]));
+
+    expect(byId.timezone.contribution).toBe(26);
+    expect(byId.language.contribution).toBe(20);
+    expect(byId.languageVariant.contribution).toBe(12);
+    expect(byId.locale.contribution).toBe(6);
   });
 });

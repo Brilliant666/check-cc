@@ -29,9 +29,11 @@ export async function runDetection(context: Omit<DetectionPluginContext, "config
   const pluginContext: DetectionPluginContext = { ...context, config, browser };
   const browserResult = collectBrowserSignals(context.region, context.text, config, browser);
   const plugins = enabledPlugins(config);
-  const signals = plugins.length
-    ? uniqueSignals((await Promise.all(plugins.map((plugin) => plugin.id === "browser-environment" ? browserResult.signals : plugin.run(pluginContext)))).flat())
-    : browserResult.signals;
+  const pluginSignals = plugins.length
+    ? (await Promise.all(plugins.map((plugin) => plugin.id === "browser-environment" ? browserResult.signals : plugin.run(pluginContext)))).flat()
+    : [];
+  // Browser-environment results already cover the duplicate plugin signals and respect the selected region.
+  const signals = uniqueSignals([...browserResult.signals, ...pluginSignals]);
 
   return {
     browserResult: { ...browserResult, signals },

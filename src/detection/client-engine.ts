@@ -1,4 +1,5 @@
 // CheckCC 的浏览器检测核心工具，用于采集环境信号、生成展示数据并计算前端风险结果。
+import { getRegionProfile, REGION_PROFILES } from "../regions";
 import { evaluateAccess } from "./scoring";
 import { detectionConfig, getSignalConfig, getSignalWeight, type DetectionConfig } from "./config";
 import type { DetectorLocaleText, TargetRegion } from "./locale";
@@ -18,6 +19,38 @@ export const regions: Array<{ code: TargetRegion }> = [{ code: "auto" }, { code:
 
 export function normalizeRegion(code: TargetRegion): RegionCode {
   return code === "hk" ? "auto" : code;
+}
+
+export function timezoneRisk(timezone: string | null, region: RegionCode) {
+  if (!timezone) return 0;
+  if (region === "auto" ? REGION_PROFILES.some((profile) => profile.timezones.includes(timezone)) : Boolean(getRegionProfile(region)?.timezones.includes(timezone))) return 1;
+  if ((region === "auto" || region === "cn") && ["Asia/Hong_Kong", "Asia/Macau", "Asia/Taipei"].includes(timezone)) return 0.6;
+  return 0;
+}
+
+export function languageRisk(languages: string[], region: RegionCode) {
+  const values = languages.map((lang) => lang.toLowerCase());
+  const matches = (prefix: string) => values.some((lang) => lang === prefix || lang.startsWith(`${prefix}-`));
+  if (region === "auto" || region === "cn") {
+    if (values.some((lang) => /^zh-cn|zh-hans|^zh$/.test(lang))) return 1;
+    if (values.some((lang) => /^zh/.test(lang))) return 0.5;
+  }
+  if ((region === "auto" || region === "ru") && matches("ru")) return 1;
+  if ((region === "auto" || region === "ir") && matches("fa")) return 1;
+  return 0;
+}
+
+export function localeRisk(locale: string | null, region: RegionCode) {
+  if (!locale) return 0;
+  const value = locale.toLowerCase();
+  const matches = (prefix: string) => value === prefix || value.startsWith(`${prefix}-`);
+  if (region === "auto" || region === "cn") {
+    if (/zh-cn|zh-hans|^zh$/.test(value)) return 1;
+    if (/^zh/.test(value)) return 0.5;
+  }
+  if ((region === "auto" || region === "ru") && matches("ru")) return 1;
+  if ((region === "auto" || region === "ir") && matches("fa")) return 1;
+  return 0;
 }
 
 export const scanSteps = detectionConfig.steps;
@@ -121,19 +154,25 @@ export function collectBrowserEnvironment(text: DetectorLocaleText): BrowserEnvi
 export function collectBrowserSignals(region: RegionCode, text: DetectorLocaleText, config: DetectionConfig = detectionConfig, snapshot = collectBrowserEnvironment(text)) {
   const { languages, timezone, locale, userAgent: ua, platform, brands } = snapshot;
   const uaLower = ua.toLowerCase();
+  const chineseTarget = region === "auto" || region === "cn";
+  const profile = getRegionProfile(region);
+  const browserPatterns = region === "auto" ? Array.from(new Set(REGION_PROFILES.flatMap((item) => item.browserPatterns))) : profile?.browserPatterns ?? [];
+  const devicePatterns = chineseTarget ? ["harmonyos", "huawei", "honor", "xiaomi", "redmi", "oppo", "vivo", "realme", "oneplus", "miui"] : profile?.devicePatterns ?? [];
   const scFonts = ["Microsoft YaHei", "Microsoft JhengHei", "PingFang SC", "Hiragino Sans GB", "STHeiti", "STSong", "SimSun", "SimHei", "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei"].filter(hasFont);
   const tcFonts = ["PingFang TC", "Heiti TC", "Hiragino Sans CNS", "Noto Sans CJK TC", "Source Han Sans TC", "MingLiU", "PMingLiU"].filter(hasFont);
   const vendorFonts = ["MiSans", "HarmonyOS Sans", "OPPO Sans", "vivo Sans", "Honor Sans", "Alibaba PuHuiTi", "WPS Fangzheng", "FZLanTingHeiS"].filter(hasFont);
-  const domesticBrowser = matchAny(`${uaLower} ${brands.toLowerCase()}`, ["micromessenger", "qqbrowser", "mqqbrowser", "quark", "ucbrowser", "ucweb", "baiduboxapp", "baidubrowser", "miuibrowser", "mibrowser", "huaweibrowser", "heytapbrowser", "oppobrowser", "vivobrowser", "360se", "360ee", "qihoobrowser", "sogoumobilebrowser", "2345browser", "lbbrowser"]);
-  const domesticDevice = matchAny(`${uaLower} ${platform ?? ""}`, ["harmonyos", "huawei", "honor", "xiaomi", "redmi", "oppo", "vivo", "realme", "oneplus", "miui"]);
+  const browserTrait = matchAny(`${uaLower} ${brands.toLowerCase()}`, browserPatterns);
+  const deviceTrait = matchAny(`${uaLower} ${platform ?? ""}`, devicePatterns);
   const chineseVariant = languages.some((lang) => /zh-(tw|hk|mo)|zh-hant/i.test(lang)) ? text.signalValues.traditionalChinese : languages.some((lang) => /zh-cn|zh-sg|zh-hans|zh/i.test(lang)) ? text.signalValues.simplifiedChinese : null;
   const offset = -new Date().getTimezoneOffset() / 60;
-  const timezoneScore = ["Asia/Shanghai", "Asia/Urumqi", "Asia/Chongqing", "Asia/Harbin", "Asia/Kashgar"].includes(timezone ?? "") ? 1 : ["Asia/Hong_Kong", "Asia/Macau", "Asia/Taipei"].includes(timezone ?? "") ? 0.6 : 0;
-  const languageScore = languages.some((lang) => /^zh-cn|zh-hans|^zh$/i.test(lang)) ? 1 : languages.some((lang) => /^zh/i.test(lang)) ? 0.5 : 0;
-  const localeScore = /zh-cn|zh-hans|^zh$/i.test(locale ?? "") ? 1 : /^zh/i.test(locale ?? "") ? 0.5 : 0;
-  const fontScore = scFonts.length ? Math.min(1, 0.75 + 0.08 * scFonts.length) : tcFonts.length ? 0.5 : 0;
-  const vendorFontScore = vendorFonts.length >= 2 ? 1 : vendorFonts.length === 1 ? 0.8 : 0;
-  const deviceScore = domesticDevice === "harmonyos" ? 1 : domesticDevice ? 0.7 : 0;
+  const timezoneScore = timezoneRisk(timezone, region);
+  const languageScore = languageRisk(languages, region);
+  const localeScore = localeRisk(locale, region);
+  const languageVariantScore = chineseTarget && chineseVariant ? 1 : 0;
+  const fontScore = chineseTarget ? (scFonts.length ? Math.min(1, 0.75 + 0.08 * scFonts.length) : tcFonts.length ? 0.5 : 0) : 0;
+  const vendorFontScore = chineseTarget ? (vendorFonts.length >= 2 ? 1 : vendorFonts.length === 1 ? 0.8 : 0) : 0;
+  const deviceScore = deviceTrait ? (chineseTarget ? (deviceTrait === "harmonyos" ? 1 : 0.7) : 0.3) : 0;
+  const timezoneOffsetScore = chineseTarget && offset === 8 ? 0.7 : 0;
   const emojiStyle = /iphone|ipad|mac os/i.test(ua) ? text.signalValues.appleEmoji : /android|harmonyos/i.test(ua) ? text.signalValues.androidEmoji : /windows/i.test(ua) ? text.signalValues.windowsEmoji : text.signalValues.unknownEmoji;
   const emojiScore = /android|harmonyos|windows/i.test(ua) ? 0.4 : /iphone|ipad|mac os/i.test(ua) ? 0.2 : 0;
   const label = text.signalLabels;
@@ -141,16 +180,16 @@ export function collectBrowserSignals(region: RegionCode, text: DetectorLocaleTe
   const signals: SignalResult[] = [
     makeSignalScore("timezone", label.timezone, timezone, 26, timezoneScore, text, config),
     makeSignalScore("language", label.language, languages.join(", "), 20, languageScore, text, config),
-    makeSignal("languageVariant", label.languageVariant, chineseVariant || value.noLanguageVariant, 12, Boolean(chineseVariant), text, config),
+    makeSignalScore("languageVariant", label.languageVariant, chineseVariant || value.noLanguageVariant, 12, languageVariantScore, text, config),
     makeSignalScore("chineseFonts", label.chineseFonts, scFonts.length ? `${value.scFonts}：${scFonts.join(" / ")}` : tcFonts.length ? `${value.tcFonts}：${tcFonts.join(" / ")}` : value.noFonts, 16, fontScore, text, config),
     makeSignalScore("vendorFonts", label.vendorFonts, vendorFonts.length ? `${value.vendorFonts}：${vendorFonts.join(" / ")}` : value.noVendorFonts, 10, vendorFontScore, text, config),
-    makeSignal("domesticBrowser", label.domesticBrowser, domesticBrowser || detectBrowserName(ua, text), 8, Boolean(domesticBrowser), text, config),
+    makeSignalScore("domesticBrowser", label.domesticBrowser, browserTrait || detectBrowserName(ua, text), 8, browserTrait ? 1 : 0, text, config),
     makeSignal("browser", label.browser, `${detectBrowserName(ua, text)} / ${detectOS(ua, platform, text)}`, 0, false, text, config),
-    makeSignalScore("domesticDevice", label.domesticDevice, domesticDevice || value.noDevice, 6, deviceScore, text, config),
+    makeSignalScore("domesticDevice", label.domesticDevice, deviceTrait || value.noDevice, 6, deviceScore, text, config),
     makeSignal("device", label.device, detectDeviceName(ua, platform, text), 0, false, text, config),
     makeSignal("os", label.os, detectOS(ua, platform, text), 0, false, text, config),
     makeSignalScore("locale", label.locale, locale, 6, localeScore, text, config),
-    makeSignalScore("timezoneOffset", label.timezoneOffset, `UTC${offset >= 0 ? "+" : ""}${offset}`, 4, offset === 8 ? 0.7 : 0, text, config),
+    makeSignalScore("timezoneOffset", label.timezoneOffset, `UTC${offset >= 0 ? "+" : ""}${offset}`, 4, timezoneOffsetScore, text, config),
     makeSignalScore("emojiStyle", label.emojiStyle, emojiStyle, 4, emojiScore, text, config),
   ].filter((signal) => getSignalConfig(signal.id, config)?.enabled !== false);
   return { ...evaluateAccess({ region, languages, timezone, locale, userAgent: ua, source: "browser" }), signals };
