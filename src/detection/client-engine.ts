@@ -184,6 +184,6 @@ export function summarizeSignals(signals: SignalResult[]): SignalScoreSummary {
     coverage: totalWeight > 0 ? Math.round((evaluatedWeight / totalWeight) * 100) : 0,
     evaluatedCount: evaluated.length,
     totalCount: weighted.length,
-    hitCount: signals.filter((signal) => signal.evaluated !== false && signal.contribution > 0).length,
+    hitCount: weighted.filter((signal) => signal.evaluated !== false && signal.contribution > 0).length,
   };
 }
