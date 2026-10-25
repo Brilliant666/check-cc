@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
   // Allow private-network devices to load dev assets during LAN testing.
   // 允许局域网设备在开发调试时加载 HMR、JS chunk 和字体等 dev 资源。
   allowedDevOrigins: [
+    "127.0.0.1",
     "192.168.*.*",
     "10.*.*.*",
     "172.16.*.*",
