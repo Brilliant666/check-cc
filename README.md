@@ -74,7 +74,7 @@
 
 ## 适用场景
 
-[CheckCC](https://checkcc.org) 适合用于学习、二次开发和自部署，面向正在注册 Claude 账号、订阅 Claude Pro、申请 Claude API、使用 Claude Code，或担心 Claude 封号、账号受限、订阅失败的用户。项目专注于 Claude 使用前后的环境风险提示，不读取 Claude 账号内容，不替代 Claude 或 Anthropic 的官方判断。
+[CheckCC](https://github.com/Brilliant666/check-cc) 适合用于学习、二次开发和自部署，面向正在注册 Claude 账号、订阅 Claude Pro、申请 Claude API、使用 Claude Code，或担心 Claude 封号、账号受限、订阅失败的用户。项目专注于 Claude 使用前后的环境风险提示，不读取 Claude 账号内容，不替代 Claude 或 Anthropic 的官方判断。
 
 如果你基于本项目进行二次开发、重新部署或发布衍生版本，请保留原始版权、开源许可声明与项目来源：<https://github.com/yacuo/check-cc.git>。
 
@@ -162,7 +162,16 @@ pnpm build
 # 将 out/ 作为站点根目录
 ```
 
-上游页面中的 canonical、OG 和在线演示链接仍指向 checkcc.org。重新部署前请按你的域名替换这些配置，避免访问统计和搜索结果流向错误站点。
+### 站点身份配置
+
+页面默认不声明 canonical、hreflang 或 OG URL，页头和页脚的 GitHub 链接指向本仓库。部署时通过环境变量设置站点公开地址：
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | 空 | 站点公开地址，例如 `https://your-domain.example`。设置后才生成 canonical、hreflang、OG URL 和 JSON-LD URL；未设置时这些字段不输出，避免指向错误站点。 |
+| `NEXT_PUBLIC_REPO_URL` | `https://github.com/Brilliant666/check-cc` | 页头、页脚和页脚源码入口使用的 GitHub 仓库地址。 |
+
+这些变量在构建时读取，修改后需要重新构建。页脚保留 yacuo/check-cc 的 MIT 归属链接，不受上述配置影响。
 
 ### 网络层配置
 
@@ -212,7 +221,7 @@ pnpm check
 
 ## 免责声明
 
-[CheckCC](https://checkcc.org) 的检测结果仅基于浏览器本地环境信号和可选的第三方 IP 地理位置进行风险提示，不代表 Claude 或 Anthropic 官方判断。IP 地理位置可能不准确，也无法识别 VPN、代理或中转。请勿将检测结果作为账号安全、订阅状态或申诉结果的唯一依据。
+[CheckCC](https://github.com/Brilliant666/check-cc) 的检测结果仅基于浏览器本地环境信号和可选的第三方 IP 地理位置进行风险提示，不代表 Claude 或 Anthropic 官方判断。IP 地理位置可能不准确，也无法识别 VPN、代理或中转。请勿将检测结果作为账号安全、订阅状态或申诉结果的唯一依据。
 
 ## 开源协议与来源
 

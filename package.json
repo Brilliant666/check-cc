@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "description": "Claude environment checker and account-risk analysis tool.",
   "license": "MIT",
-  "homepage": "https://checkcc.org",
+  "homepage": "https://github.com/Brilliant666/check-cc",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yacuo/check-cc.git"
+    "url": "git+https://github.com/Brilliant666/check-cc.git"
   },
   "bugs": {
-    "url": "https://github.com/yacuo/check-cc/issues"
+    "url": "https://github.com/Brilliant666/check-cc/issues"
   },
   "keywords": [
     "claude",

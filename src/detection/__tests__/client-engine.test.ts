@@ -147,7 +147,7 @@ describe("isPublicIp", () => {
 
 describe("locale content", () => {
   it("avoids unsupported launch claims in every locale", () => {
-    const banned = ["独家", "完美支持", "完美支援", "Fully supported", "Полная поддержка", "Google Analytics", "支付地区", "付款地区", "payment-region", "платежного региона", "subscription availability", "账号可信度", "Account trust", "Доверие аккаунта", "AI 环境", "AI 環境", "AI-движок", "AI environment"];
+    const banned = ["独家", "完美支持", "完美支援", "Fully supported", "Полная поддержка", "Google Analytics", "支付地区", "付款地区", "payment-region", "платежного региона", "subscription availability", "账号可信度", "Account trust", "Доверие аккаунта", "AI 环境", "AI 環境", "AI-движок", "AI environment", "checkcc.org", "Live Demo", "Official Site", "hosted version"];
     const serialized = JSON.stringify(messages);
     for (const phrase of banned) expect(serialized).not.toContain(phrase);
     for (const text of Object.values(detectorLocaleText)) {

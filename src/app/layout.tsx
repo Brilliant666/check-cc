@@ -1,26 +1,31 @@
 // CheckCC 的全站布局入口，用于声明 SEO 元信息、全局样式和页面根结构。
 import type { Metadata } from "next";
+import { siteUrl } from "@/site-config";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://checkcc.org"),
+  ...(siteUrl ? { metadataBase: new URL(siteUrl) } : {}),
   title: {
     default: "检查 Claude 封号风险",
     template: "%s｜CheckCC",
   },
   description: "浏览器环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
-  alternates: {
-    canonical: "/",
-    languages: {
-      "zh-CN": "/",
-      "zh-HK": "/hong-kong",
-      ru: "/russia",
-      en: "/en",
-    },
-  },
+  ...(siteUrl
+    ? {
+        alternates: {
+          canonical: "/",
+          languages: {
+            "zh-CN": "/",
+            "zh-HK": "/hong-kong",
+            ru: "/russia",
+            en: "/en",
+          },
+        },
+      }
+    : {}),
   openGraph: {
     type: "website",
-    url: "https://checkcc.org",
+    ...(siteUrl ? { url: siteUrl } : {}),
     siteName: "CheckCC",
     title: "检查 Claude 封号风险",
     description: "浏览器环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",

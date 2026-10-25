@@ -2,7 +2,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { HomeContent } from "../page";
-import { getLocaleBySlug, localeRoutes, messages, type LocaleSlug } from "@/i18n/messages";
+import { getLocaleBySlug, localeRoutes, messages, type LocaleCode, type LocaleSlug } from "@/i18n/messages";
+import { siteUrl } from "@/site-config";
+
+const openGraphLocales: Record<LocaleCode, string> = { zh: "zh_CN", "zh-HK": "zh_HK", ru: "ru_RU", en: "en_US" };
 
 export function generateStaticParams() {
   return Object.values(localeRoutes)
@@ -18,7 +21,20 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     title: copy.hero.title,
     description: copy.hero.subtitle,
-    alternates: { canonical: `/${slug}` },
+    ...(siteUrl ? { alternates: { canonical: `/${slug}` } } : {}),
+    openGraph: {
+      type: "website",
+      ...(siteUrl ? { url: `${siteUrl}/${slug}` } : {}),
+      siteName: "CheckCC",
+      title: copy.hero.title,
+      description: copy.hero.subtitle,
+      locale: openGraphLocales[locale],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: copy.hero.title,
+      description: copy.hero.subtitle,
+    },
   };
 }
 

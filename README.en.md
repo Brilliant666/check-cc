@@ -73,7 +73,7 @@ The screenshots below show the upstream UI. Signal rows and copy in this fork ma
 
 ## Use cases
 
-[CheckCC](https://checkcc.org) is suitable for learning, secondary development, and self-hosting. It is aimed at users creating a Claude account, subscribing to Claude Pro, applying for Claude API access, using Claude Code, or concerned about account restrictions and subscription failures. It focuses on environment risk hints and does not read Claude account content or replace official Claude or Anthropic judgments.
+[CheckCC](https://github.com/Brilliant666/check-cc) is suitable for learning, secondary development, and self-hosting. It is aimed at users creating a Claude account, subscribing to Claude Pro, applying for Claude API access, using Claude Code, or concerned about account restrictions and subscription failures. It focuses on environment risk hints and does not read Claude account content or replace official Claude or Anthropic judgments.
 
 If you use this project for secondary development, redeployment, or derivative releases, retain the original copyright, open-source license notice, and project source: <https://github.com/yacuo/check-cc.git>.
 
@@ -161,7 +161,16 @@ pnpm build
 # serve out/ as the site root
 ```
 
-The upstream pages still point canonical, OG, and live-demo links to checkcc.org. Replace those values with your own domain before deploying so traffic and search results do not flow to the wrong site.
+### Site identity configuration
+
+By default the build emits no canonical, hreflang, or OG URL, and the header/footer GitHub links point to this repository. Set the public site address at build time:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | empty | Public site URL, for example `https://your-domain.example`. When set, canonical, hreflang, OG URL, and JSON-LD URL are emitted. When empty, those fields are omitted so they cannot point at the wrong site. |
+| `NEXT_PUBLIC_REPO_URL` | `https://github.com/Brilliant666/check-cc` | GitHub repository used by the header, footer, and footer source link. |
+
+These values are read at build time; rebuild after changing them. The footer always keeps the MIT credit link to yacuo/check-cc.
 
 ### Network layer configuration
 
@@ -211,7 +220,7 @@ Please use GitHub Issues: <https://github.com/Brilliant666/check-cc/issues>
 
 ## Disclaimer
 
-CheckCC provides risk hints based on local browser environment signals and optional third-party IP geolocation. It does not represent official Claude or Anthropic judgments. IP geolocation may be inaccurate and cannot identify VPNs, proxies, or relays. Do not use the result as the only basis for account safety, subscription status, or appeal decisions.
+[CheckCC](https://github.com/Brilliant666/check-cc) provides risk hints based on local browser environment signals and optional third-party IP geolocation. It does not represent official Claude or Anthropic judgments. IP geolocation may be inaccurate and cannot identify VPNs, proxies, or relays. Do not use the result as the only basis for account safety, subscription status, or appeal decisions.
 
 ## License and source
 
