@@ -156,6 +156,10 @@ describe("locale content", () => {
       expect(text.recommendations.incomplete).not.toBe("");
       expect(text.recommendations.limitation).not.toBe("");
       expect(text.risk.unknown).not.toBe("");
+      expect(text.report.title).not.toBe("");
+      expect(text.report.copy).not.toBe("");
+      expect(text.report.download).not.toBe("");
+      expect(text.report.context).not.toBe("");
     }
   });
 });

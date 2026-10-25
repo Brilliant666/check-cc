@@ -18,6 +18,7 @@
 | 3 context signals (not scored) | Implemented |
 | Coverage and "not evaluated" states | Implemented |
 | Risk-based next-step recommendations | Implemented |
+| Copy text report / JSON export | Implemented |
 | Chinese, Traditional Chinese, Russian, English | Implemented |
 | Static export and self-hosting | Implemented |
 | IP / ASN / network egress intelligence | Not enabled |
@@ -47,6 +48,10 @@ Browser/application environment, device/system clues, and operating system are s
 - The score is normalized over evaluated weight, and the report shows coverage.
 - Unevaluated signals are shown as "not evaluated" or "unknown", never as zero risk.
 - The score is a heuristic risk hint. It does not predict Claude account status or represent Anthropic's actual risk decisions.
+
+### Report export
+
+After a check, you can copy a text report or download JSON. The report includes the risk score, coverage, raw signal values, weights and contributions, recommendations, and limitations, making it easy to save, compare, or attach to a bug report.
 
 ## Screenshots
 
@@ -160,7 +165,7 @@ pnpm check
 
 `pnpm check` runs lint, type checking, and unit tests. GitHub Actions runs the same checks on push and pull requests, plus a static build.
 
-Tests cover score normalization, coverage, unknown signals, zero-weight signals, IP classification, and locale copy completeness.
+Tests cover score normalization, coverage, unknown signals, zero-weight signals, IP classification, report export, and locale copy completeness.
 
 ## Feedback
 

@@ -21,6 +21,24 @@ export type DetectorLocaleText = {
   browserOnlyNote: string;
   recommendationsTitle: string;
   recommendations: { high: string; medium: string; low: string; incomplete: string; limitation: string };
+  report: {
+    title: string;
+    generatedAt: string;
+    riskScore: string;
+    coverage: string;
+    hitCount: string;
+    status: string;
+    region: string;
+    signals: string;
+    recommendations: string;
+    context: string;
+    weight: string;
+    contribution: string;
+    copy: string;
+    copied: string;
+    copyFailed: string;
+    download: string;
+  };
 };
 
 export function localizeLocation(value: string, locale: LocaleCode) {
@@ -52,6 +70,24 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
       incomplete: "部分信号无法评估，当前结论可能不完整；可尝试更换主流浏览器重新检测。",
       limitation: "结果仅基于本机浏览器信号，不读取账号或 Cookie，也不请求 IP 与网络出口信息。",
     },
+    report: {
+      title: "Claude 环境检测报告",
+      generatedAt: "生成时间",
+      riskScore: "风险分",
+      coverage: "可评估覆盖",
+      hitCount: "命中信号",
+      status: "状态",
+      region: "目标地区",
+      signals: "检测信号",
+      recommendations: "建议",
+      context: "上下文，不计分",
+      weight: "权重",
+      contribution: "贡献",
+      copy: "复制报告",
+      copied: "已复制",
+      copyFailed: "复制失败",
+      download: "下载 JSON",
+    },
   },
   "zh-HK": {
     pending: "等待檢測",
@@ -75,6 +111,24 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
       low: "未發現明顯的高風險組合，但結果不代表帳號一定安全；平台風控還會參考登入行為和付款資料。",
       incomplete: "部分訊號無法評估，目前結論可能不完整；可嘗試更換主流瀏覽器重新檢測。",
       limitation: "結果僅基於本機瀏覽器訊號，不讀取帳號或 Cookie，也不請求 IP 與網絡出口資料。",
+    },
+    report: {
+      title: "Claude 環境檢測報告",
+      generatedAt: "生成時間",
+      riskScore: "風險分",
+      coverage: "可評估覆蓋",
+      hitCount: "命中訊號",
+      status: "狀態",
+      region: "目標地區",
+      signals: "檢測訊號",
+      recommendations: "建議",
+      context: "上下文，不計分",
+      weight: "權重",
+      contribution: "貢獻",
+      copy: "複製報告",
+      copied: "已複製",
+      copyFailed: "複製失敗",
+      download: "下載 JSON",
     },
   },
   ru: {
@@ -100,6 +154,24 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
       incomplete: "Часть сигналов недоступна, вывод может быть неполным. Повторите проверку в популярном браузере.",
       limitation: "Результат основан только на сигналах браузера; аккаунт и Cookie не читаются, IP и сетевой выход не запрашиваются.",
     },
+    report: {
+      title: "Отчёт о проверке окружения Claude",
+      generatedAt: "Время создания",
+      riskScore: "Оценка риска",
+      coverage: "Покрытие",
+      hitCount: "Совпавшие сигналы",
+      status: "Статус",
+      region: "Целевой регион",
+      signals: "Сигналы",
+      recommendations: "Рекомендации",
+      context: "Контекст, без оценки",
+      weight: "Вес",
+      contribution: "Вклад",
+      copy: "Копировать отчёт",
+      copied: "Скопировано",
+      copyFailed: "Не удалось скопировать",
+      download: "Скачать JSON",
+    },
   },
   en: {
     pending: "Waiting",
@@ -123,6 +195,24 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
       low: "No clear high-risk combination was found, but this does not guarantee account safety; platform risk controls also consider sign-in behavior and payment details.",
       incomplete: "Some signals could not be evaluated, so the conclusion may be incomplete. Try again in a mainstream browser.",
       limitation: "The result uses browser-side signals only. It does not read your account or cookies, and does not request IP or network egress data.",
+    },
+    report: {
+      title: "Claude Environment Check Report",
+      generatedAt: "Generated",
+      riskScore: "Risk score",
+      coverage: "Coverage",
+      hitCount: "Matched signals",
+      status: "Status",
+      region: "Target region",
+      signals: "Signals",
+      recommendations: "Recommendations",
+      context: "Context, not scored",
+      weight: "Weight",
+      contribution: "Contribution",
+      copy: "Copy report",
+      copied: "Copied",
+      copyFailed: "Copy failed",
+      download: "Download JSON",
     },
   },
 };

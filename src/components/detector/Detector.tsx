@@ -19,6 +19,7 @@ import {
 } from "@/detection/client-engine";
 import { detectorLocaleText, localizeLocation, type DetectorLocaleText, type TargetRegion } from "@/detection/locale";
 import { detectionConfig } from "@/detection/config";
+import { buildJsonReport, buildTextReport, reportFilename } from "@/detection/report";
 import { runDetection, type DetectionRunResult } from "@/detection/runner";
 import { messages, type LocaleCode } from "@/i18n/messages";
 
@@ -94,6 +95,7 @@ export function Detector({ locale = "zh" }: Props) {
   const [progress, setProgress] = useState(0);
   const [activeSignal, setActiveSignal] = useState(-1);
   const [showRegionPicker, setShowRegionPicker] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   const signals = useMemo<SignalView[]>(() => {
     const map = new Map<string, SignalResult>();
@@ -150,6 +152,40 @@ export function Detector({ locale = "zh" }: Props) {
     rawScore >= 70 ? detectorText.recommendations.high : rawScore >= 31 ? detectorText.recommendations.medium : detectorText.recommendations.low,
     detectorText.recommendations.limitation,
   ].filter((item): item is string => Boolean(item));
+
+  const reportInput = () => ({
+    text: detectorText,
+    summary: scoreSummary,
+    signals,
+    score: rawScore,
+    statusLabel: detectorText.status[status],
+    riskLabel,
+    regionLabel: detectorText.regions[region],
+    recommendations: recommendationList,
+  });
+
+  const copyReport = async () => {
+    try {
+      await navigator.clipboard.writeText(buildTextReport(reportInput()));
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+    window.setTimeout(() => setCopyState("idle"), 2000);
+  };
+
+  const downloadReport = () => {
+    const generatedAt = new Date();
+    const blob = new Blob([buildJsonReport({ ...reportInput(), generatedAt })], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = reportFilename(generatedAt);
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   const runCheck = async () => {
     setLoading(true);
@@ -316,7 +352,17 @@ export function Detector({ locale = "zh" }: Props) {
 
       {hasChecked && (
         <div className="mt-5 rounded-[2rem] border border-stone-200 bg-white/80 p-5 shadow-xl shadow-orange-950/5 md:p-6">
-          <h3 className="text-xl font-black text-[#0b1220]">{detectorText.recommendationsTitle}</h3>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-xl font-black text-[#0b1220]">{detectorText.recommendationsTitle}</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={copyReport} className="cursor-pointer rounded-full border border-stone-300 bg-white px-3 py-1.5 text-xs font-bold text-stone-600 transition hover:border-[#d97757] hover:text-[#c05f3c]" aria-live="polite">
+                {copyState === "copied" ? detectorText.report.copied : copyState === "failed" ? detectorText.report.copyFailed : detectorText.report.copy}
+              </button>
+              <button type="button" onClick={downloadReport} className="cursor-pointer rounded-full border border-stone-300 bg-white px-3 py-1.5 text-xs font-bold text-stone-600 transition hover:border-[#d97757] hover:text-[#c05f3c]">
+                {detectorText.report.download}
+              </button>
+            </div>
+          </div>
           <ul className="mt-3 grid gap-2 text-sm font-semibold leading-6 text-stone-600 md:grid-cols-2">
             {recommendationList.map((item) => (
               <li key={item} className="rounded-xl bg-[#fffaf3] px-3 py-2 ring-1 ring-stone-200">{item}</li>
