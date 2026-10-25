@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { messages } from "../../i18n/messages";
 import { isPublicIp, makeSignalScore, normalizeRegion, summarizeSignals } from "../client-engine";
 import { detectionConfig } from "../config";
 import { detectorLocaleText } from "../locale";
@@ -145,6 +146,16 @@ describe("isPublicIp", () => {
 });
 
 describe("locale content", () => {
+  it("avoids unsupported launch claims in every locale", () => {
+    const banned = ["独家", "完美支持", "完美支援", "Fully supported", "Полная поддержка", "Google Analytics", "支付地区", "付款地区", "payment-region", "платежного региона", "subscription availability", "账号可信度", "Account trust", "Доверие аккаунта"];
+    const serialized = JSON.stringify(messages);
+    for (const phrase of banned) expect(serialized).not.toContain(phrase);
+    for (const text of Object.values(detectorLocaleText)) {
+      expect(text.status.supported).not.toMatch(/完美|Fully supported|Полная поддержка|官方支持|officially supported/);
+      expect(text.risk.supported).not.toMatch(/完美|Fully supported|Полная поддержка|官方支持|officially supported/);
+    }
+  });
+
   it("ships non-empty recommendations and coverage copy for every locale", () => {
     for (const text of Object.values(detectorLocaleText)) {
       expect(text.coverageLabel).not.toBe("");

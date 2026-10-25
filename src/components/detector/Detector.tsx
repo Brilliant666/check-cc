@@ -32,7 +32,7 @@ function ScoreRing({ score, checked, text }: { score: number; checked: boolean; 
       <div className="grid h-[8.5rem] w-[8.5rem] place-items-center rounded-full bg-white shadow-inner">
         <div className="text-center">
           <div className="text-5xl font-black text-[#0b1220]">{checked ? `${score}%` : "--"}</div>
-          <div className="text-xs font-bold tracking-[0.2em] text-stone-500">{checked ? text.risk.blocked : text.risk.waiting}</div>
+          <div className="text-xs font-bold tracking-[0.2em] text-stone-500">{checked ? text.risk.scoreLabel : text.risk.waiting}</div>
         </div>
       </div>
     </div>
@@ -107,20 +107,20 @@ export function Detector({ locale = "zh" }: Props) {
           score: match.score,
           weight,
           contribution: Math.round(match.score * weight),
-          source: "server",
+          source: "network",
           evaluated: true,
         });
       }
-      map.set("ipAddress", { id: "ipAddress", label: detectorText.signalLabels.ipAddress, value: networkIntel.ip, score: 0, weight: 0, contribution: 0, source: "server", evaluated: true });
+      map.set("ipAddress", { id: "ipAddress", label: detectorText.signalLabels.ipAddress, value: networkIntel.ip, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
       const location = [networkIntel.city, networkIntel.region].filter(Boolean).join(" / ");
-      if (location) map.set("browserIpLocation", { id: "browserIpLocation", label: detectorText.signalLabels.browserIpLocation, value: location, score: 0, weight: 0, contribution: 0, source: "server", evaluated: true });
-      if (networkIntel.asn) map.set("browserIpAsn", { id: "browserIpAsn", label: detectorText.signalLabels.browserIpAsn, value: networkIntel.asn, score: 0, weight: 0, contribution: 0, source: "server", evaluated: true });
+      if (location) map.set("browserIpLocation", { id: "browserIpLocation", label: detectorText.signalLabels.browserIpLocation, value: location, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
+      if (networkIntel.asn) map.set("browserIpAsn", { id: "browserIpAsn", label: detectorText.signalLabels.browserIpAsn, value: networkIntel.asn, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
       const organization = networkIntel.org || networkIntel.isp;
-      if (organization) map.set("browserIpOrg", { id: "browserIpOrg", label: detectorText.signalLabels.browserIpOrg, value: organization, score: 0, weight: 0, contribution: 0, source: "server", evaluated: true });
+      if (organization) map.set("browserIpOrg", { id: "browserIpOrg", label: detectorText.signalLabels.browserIpOrg, value: organization, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
     }
 
     const visibleDefaults = defaultSignals.filter((item) => {
-      if (item.source !== "server") return true;
+      if (item.source !== "server" && item.source !== "network") return true;
       if (!networkUsed) return false;
       return networkState !== "failed" || item.weight > 0;
     });
@@ -152,7 +152,7 @@ export function Detector({ locale = "zh" }: Props) {
   const detectedRegionCode = (browserResult?.matchedRegion ?? networkMatchedRegion ?? pageRegionCode) as TargetRegion;
   const pageRegion = detectorText.regions[detectedRegionCode];
   const russianSummaryRegions: Record<TargetRegion, string> = { auto: "российской", cn: "китайской", hk: "гонконгской", ru: "российской", ir: "иранской" };
-  const suspectedRegion = rawScore > 0 ? locale === "ru" ? russianSummaryRegions[detectedRegionCode] : pageRegion : detectorText.confidence.supportedRegion;
+  const suspectedRegion = locale === "ru" ? russianSummaryRegions[detectedRegionCode] : pageRegion;
   const confidenceText = rawScore >= 70 ? detectorText.confidence.high : rawScore >= 31 ? detectorText.confidence.medium : rawScore > 0 ? detectorText.confidence.low : detectorText.confidence.safe;
   const environmentSuffix = locale === "ru" ? "среды" : copy.environmentSuffix;
   const limitationText = !networkUsed ? detectorText.recommendations.limitation : networkState === "ok" ? detectorText.recommendations.limitationNetwork : detectorText.recommendations.limitationNetworkFailed;
@@ -298,8 +298,12 @@ export function Detector({ locale = "zh" }: Props) {
                 <>
                   <div className="text-2xl text-[#0b1220] md:inline md:text-3xl">
                     <span>{confidenceText}</span>
-                    <span className="mx-1 text-[#d97757]">{suspectedRegion}</span>
-                    <span>{environmentSuffix}</span>
+                    {rawScore > 0 && (
+                      <>
+                        <span className="mx-1 text-[#d97757]">{suspectedRegion}</span>
+                        <span>{environmentSuffix}</span>
+                      </>
+                    )}
                     <span className="hidden md:inline">：</span>
                   </div>
                   <div className="mt-2 text-2xl md:mt-0 md:inline md:text-3xl">

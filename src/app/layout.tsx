@@ -1,4 +1,4 @@
-// CheckCC 的全站布局入口，用于声明 SEO 元信息、全局样式、统计脚本和页面根结构。
+// CheckCC 的全站布局入口，用于声明 SEO 元信息、全局样式和页面根结构。
 import type { Metadata } from "next";
 import "./globals.css";
 
@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     default: "检查 Claude 封号风险",
     template: "%s｜CheckCC",
   },
-  description: "独家 AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号风险",
+  description: "AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
   alternates: {
     canonical: "/",
     languages: {
@@ -23,13 +23,13 @@ export const metadata: Metadata = {
     url: "https://checkcc.org",
     siteName: "CheckCC",
     title: "检查 Claude 封号风险",
-    description: "独家 AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号风险",
+    description: "AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
     locale: "zh_CN",
   },
   twitter: {
     card: "summary_large_image",
     title: "检查 Claude 封号风险",
-    description: "独家 AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号风险",
+    description: "AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
   },
   robots: {
     index: true,

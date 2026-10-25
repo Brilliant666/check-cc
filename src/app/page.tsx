@@ -7,7 +7,7 @@ import { messages, type LocaleCode } from "@/i18n/messages";
 
 export const metadata: Metadata = {
   title: "检查 Claude 封号风险",
-  description: "独家 AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号风险",
+  description: "AI 环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
 };
 
 const pageMax = "mx-auto w-full max-w-[1440px] px-5 md:px-8 2xl:max-w-[1536px] min-[1800px]:max-w-[1760px] min-[1920px]:max-w-[1920px] min-[2400px]:max-w-[2200px]";
@@ -33,7 +33,7 @@ const jsonLd = {
       applicationCategory: "SecurityApplication",
       operatingSystem: "All",
       inLanguage: "zh-CN",
-      description: "Claude 环境检测、Claude 运行环境检查、Claude 封号风险与可用地区检测工具。",
+      description: "Claude 运行环境与地区画像自检工具：检查浏览器信号冲突，并生成仅供参考的环境风险报告。",
       featureList: messages.zh.signals.checks.map(([title]) => title),
     },
     {

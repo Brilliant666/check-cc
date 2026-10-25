@@ -23,7 +23,7 @@ export function normalizeRegion(code: TargetRegion): RegionCode {
 export const scanSteps = detectionConfig.steps;
 
 export const defaultSignals: SignalView[] = Object.entries(detectionConfig.signals)
-  .filter(([, config]) => config.enabled && (config.source !== "server" || detectionConfig.services.ipIntel?.enabled))
+  .filter(([, config]) => config.enabled && ((config.source !== "server" && config.source !== "network") || detectionConfig.services.ipIntel?.enabled))
   .sort(([, a], [, b]) => a.order - b.order)
   .map(([id, config]) => ({ id, label: config.labelKey, value: null, score: 0, weight: config.weight, contribution: 0, source: config.source, evaluated: false }));
 

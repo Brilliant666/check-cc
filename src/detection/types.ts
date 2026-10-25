@@ -1,7 +1,7 @@
 // CheckCC 的检测数据类型定义，用于描述地区、产品访问状态、信号结果和地区画像结构。
 export type RegionCode = "auto" | "cn" | "ru" | "ir";
 export type AccessStatus = "supported" | "possibly_supported" | "restricted" | "unsupported" | "unknown";
-export type SignalSource = "browser" | "server" | "combined";
+export type SignalSource = "browser" | "server" | "combined" | "network";
 
 export type ProductAccess = {
   web: AccessStatus;
