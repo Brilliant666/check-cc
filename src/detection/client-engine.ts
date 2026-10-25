@@ -4,7 +4,7 @@ import { detectionConfig, getSignalConfig, getSignalWeight, type DetectionConfig
 import type { DetectorLocaleText, TargetRegion } from "./locale";
 import type { RegionCode, SignalResult } from "./types";
 
-export type SignalView = SignalResult & { state?: "pending" | "running" | "done" };
+export type SignalView = SignalResult & { state?: "pending" | "running" | "done" | "unknown" | "unavailable" };
 export type BrowserIpIntel = { ip: string; location: string; country: string; asn: string; org: string };
 export type BrowserEnvironmentSnapshot = {
   languages: string[];
@@ -24,9 +24,9 @@ export function normalizeRegion(code: TargetRegion): RegionCode {
 export const scanSteps = detectionConfig.steps;
 
 export const defaultSignals: SignalView[] = Object.entries(detectionConfig.signals)
-  .filter(([, config]) => config.enabled)
+  .filter(([, config]) => config.enabled && (config.source !== "server" || detectionConfig.services.ipIntel?.enabled))
   .sort(([, a], [, b]) => a.order - b.order)
-  .map(([id, config]) => ({ id, label: config.labelKey, value: null, score: 0, weight: config.weight, contribution: 0, source: config.source }));
+  .map(([id, config]) => ({ id, label: config.labelKey, value: null, score: 0, weight: config.weight, contribution: 0, source: config.source, evaluated: false }));
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -47,7 +47,8 @@ function makeSignal(id: string, label: string, value: string | null, fallbackWei
 export function makeSignalScore(id: string, label: string, value: string | null, fallbackWeight: number, score: number, text: DetectorLocaleText, config: DetectionConfig): SignalResult {
   const normalized = Math.max(0, Math.min(1, score));
   const weight = getSignalWeight(id, fallbackWeight, config);
-  return { id, label, value: value || text.unknown, score: normalized, weight, contribution: Math.round(normalized * weight), source: getSignalConfig(id, config)?.source ?? "browser" };
+  const hasValue = value !== null && value !== "";
+  return { id, label, value: value || text.unknown, score: normalized, weight, contribution: Math.round(normalized * weight), source: getSignalConfig(id, config)?.source ?? "browser", evaluated: hasValue };
 }
 
 function hasFont(font: string) {
@@ -164,13 +165,25 @@ export function isPublicIp(ip: string) {
   return !(a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || a === 0);
 }
 
-export function signalsScore(browserSignals: SignalResult[], serverSignals: SignalResult[], config: DetectionConfig = detectionConfig) {
-  const scoreMap = new Map<string, number>();
-  for (const signal of browserSignals) {
-    if (signal.contribution > 0) scoreMap.set(signal.id, signal.contribution);
-  }
-  for (const signal of serverSignals) {
-    if (signal.id === "country" && signal.contribution > 0) scoreMap.set("country", getSignalWeight("country", 20, config));
-  }
-  return Array.from(scoreMap.values()).reduce((sum, value) => sum + value, 0);
+export type SignalScoreSummary = {
+  score: number;
+  coverage: number;
+  evaluatedCount: number;
+  totalCount: number;
+  hitCount: number;
+};
+
+export function summarizeSignals(signals: SignalResult[]): SignalScoreSummary {
+  const weighted = signals.filter((signal) => signal.weight > 0);
+  const totalWeight = weighted.reduce((sum, signal) => sum + signal.weight, 0);
+  const evaluated = weighted.filter((signal) => signal.evaluated !== false);
+  const evaluatedWeight = evaluated.reduce((sum, signal) => sum + signal.weight, 0);
+  const raw = evaluated.reduce((sum, signal) => sum + Math.max(0, signal.contribution), 0);
+  return {
+    score: evaluatedWeight > 0 ? Math.min(100, Math.round((raw * totalWeight) / evaluatedWeight)) : 0,
+    coverage: totalWeight > 0 ? Math.round((evaluatedWeight / totalWeight) * 100) : 0,
+    evaluatedCount: evaluated.length,
+    totalCount: weighted.length,
+    hitCount: signals.filter((signal) => signal.evaluated !== false && signal.contribution > 0).length,
+  };
 }

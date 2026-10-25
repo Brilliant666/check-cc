@@ -18,6 +18,7 @@ export type SignalResult = {
   weight: number;
   contribution: number;
   source: SignalSource;
+  evaluated?: boolean;
 };
 
 export type RegionProfile = {

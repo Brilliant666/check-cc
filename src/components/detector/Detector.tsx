@@ -12,8 +12,8 @@ import {
   normalizeRegion,
   regions,
   scanSteps,
-  signalsScore,
   sleep,
+  summarizeSignals,
   type BrowserIpIntel,
   type SignalView,
 } from "@/detection/client-engine";
@@ -40,7 +40,8 @@ function ScoreRing({ score, checked, text }: { score: number; checked: boolean; 
 }
 
 function signalTone(signal: SignalView) {
-  if (signal.state === "pending") return "border-stone-200 bg-stone-50 text-stone-400";
+  if (signal.state === "pending" || signal.state === "unavailable") return "border-stone-200 bg-stone-50 text-stone-400";
+  if (signal.state === "unknown") return "border-stone-200 bg-stone-50 text-stone-500";
   if (signal.state === "running") return "border-sky-300 bg-sky-50 text-sky-700 shadow-md shadow-sky-900/10";
   if (signal.contribution > 0) return "border-red-500 bg-red-600 text-white shadow-lg shadow-red-900/30 [animation:risk-card-pulse_1.2s_ease-in-out_infinite]";
   return "border-emerald-300 bg-emerald-50 text-emerald-700";
@@ -69,7 +70,7 @@ function SignalList({ signals, extraCards = [] }: { signals: SignalView[]; extra
               <div className={`truncate text-sm font-semibold ${signalLabelTone(item.signal)}`}>{item.signal.label}</div>
               <div className="truncate text-xs font-semibold opacity-90">{item.signal.value}</div>
             </div>
-            <div className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${signalBadgeTone(item.signal)}`}>{item.signal.state === "pending" ? "--" : `+${item.signal.contribution}`}</div>
+            <div className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${signalBadgeTone(item.signal)}`}>{item.signal.state === "done" ? `+${item.signal.contribution}` : "--"}</div>
           </div>
         </div>
       ) : (
@@ -94,16 +95,6 @@ export function Detector({ locale = "zh" }: Props) {
   const [activeSignal, setActiveSignal] = useState(-1);
   const [showRegionPicker, setShowRegionPicker] = useState(false);
 
-  const rawScore = useMemo(() => Math.min(100, signalsScore(browserResult?.signals ?? [], serverResult?.signals ?? [])), [browserResult, serverResult]);
-  const animatedScore = loading ? Math.round((rawScore * progress) / 100) : rawScore;
-  const status = rawScore >= 70 ? "restricted" : rawScore >= 31 ? "possibly_supported" : rawScore > 0 ? "unknown" : "supported";
-  const pageRegionCode = region !== "auto" ? region : locale === "zh-HK" ? "hk" : locale === "ru" ? "ru" : "cn";
-  const detectedRegionCode = (serverResult?.matchedRegion ?? browserResult?.matchedRegion ?? pageRegionCode) as TargetRegion;
-  const pageRegion = detectorText.regions[detectedRegionCode];
-  const russianSummaryRegions: Record<TargetRegion, string> = { auto: "российской", cn: "китайской", hk: "гонконгской", ru: "российской", ir: "иранской" };
-  const suspectedRegion = rawScore > 0 ? locale === "ru" ? russianSummaryRegions[detectedRegionCode] : pageRegion : detectorText.confidence.supportedRegion;
-  const confidenceText = rawScore >= 70 ? detectorText.confidence.high : rawScore >= 31 ? detectorText.confidence.medium : rawScore > 0 ? detectorText.confidence.low : detectorText.confidence.safe;
-  const environmentSuffix = locale === "ru" ? "среды" : copy.environmentSuffix;
   const signals = useMemo<SignalView[]>(() => {
     const map = new Map<string, SignalResult>();
     for (const signal of browserResult?.signals ?? []) map.set(signal.id, signal);
@@ -128,14 +119,37 @@ export function Detector({ locale = "zh" }: Props) {
     if (browserIpIntel?.org) map.set("browserIpOrg", { id: "browserIpOrg", label: detectorText.signalLabels.browserIpOrg, value: browserIpIntel.org, score: 0, weight: 0, contribution: 0, source: "server" });
     const merged = defaultSignals.map((item, index) => {
       const found = map.get(item.id);
-      const state = progress === 100 || found ? "done" : index === activeSignal ? "running" : index < activeSignal ? "done" : "pending";
-      return { ...item, label: detectorText.signalLabels[item.id] ?? item.label, value: detectorText.pending, ...found, state } as SignalView;
+      const label = detectorText.signalLabels[item.id] ?? item.label;
+      if (!found) {
+        const state = progress === 100 ? "unavailable" : index === activeSignal ? "running" : "pending";
+        return { ...item, label, value: progress === 100 ? detectorText.notEvaluated : detectorText.pending, state } as SignalView;
+      }
+      return { ...item, ...found, label: found.label || label, state: found.evaluated === false ? "unknown" : "done" } as SignalView;
     });
     for (const signal of map.values()) {
-      if (!defaultSignals.some((item) => item.id === signal.id)) merged.push({ ...signal, state: progress === 100 ? "done" : "running" });
+      if (!defaultSignals.some((item) => item.id === signal.id)) merged.push({ ...signal, state: signal.evaluated === false ? "unknown" : progress === 100 ? "done" : "running" });
     }
     return merged;
   }, [browserResult, serverResult, browserIpIntel, activeSignal, progress, detectorText, locale]);
+
+  const scoreSummary = useMemo(() => summarizeSignals(signals), [signals]);
+  const rawScore = scoreSummary.score;
+  const coverage = scoreSummary.coverage;
+  const fullCoverage = scoreSummary.totalCount > 0 && scoreSummary.evaluatedCount === scoreSummary.totalCount;
+  const animatedScore = loading ? Math.round((rawScore * progress) / 100) : rawScore;
+  const status = rawScore >= 70 ? "restricted" : rawScore >= 31 ? "possibly_supported" : rawScore > 0 ? "unknown" : fullCoverage ? "supported" : "unknown";
+  const pageRegionCode = region !== "auto" ? region : locale === "zh-HK" ? "hk" : locale === "ru" ? "ru" : "cn";
+  const detectedRegionCode = (serverResult?.matchedRegion ?? browserResult?.matchedRegion ?? pageRegionCode) as TargetRegion;
+  const pageRegion = detectorText.regions[detectedRegionCode];
+  const russianSummaryRegions: Record<TargetRegion, string> = { auto: "российской", cn: "китайской", hk: "гонконгской", ru: "российской", ir: "иранской" };
+  const suspectedRegion = rawScore > 0 ? locale === "ru" ? russianSummaryRegions[detectedRegionCode] : pageRegion : detectorText.confidence.supportedRegion;
+  const confidenceText = rawScore >= 70 ? detectorText.confidence.high : rawScore >= 31 ? detectorText.confidence.medium : rawScore > 0 ? detectorText.confidence.low : detectorText.confidence.safe;
+  const environmentSuffix = locale === "ru" ? "среды" : copy.environmentSuffix;
+  const recommendationList = [
+    coverage < 100 ? detectorText.recommendations.incomplete : null,
+    rawScore >= 70 ? detectorText.recommendations.high : rawScore >= 31 ? detectorText.recommendations.medium : detectorText.recommendations.low,
+    detectorText.recommendations.limitation,
+  ].filter((item): item is string => Boolean(item));
 
   const runCheck = async () => {
     setLoading(true);
@@ -186,7 +200,7 @@ export function Detector({ locale = "zh" }: Props) {
 
   const hasChecked = progress === 100;
   const ringActive = loading || progress > 0;
-  const riskLabel = !ringActive ? detectorText.risk.waiting : !hasChecked ? detectorText.risk.checking : animatedScore === 0 ? detectorText.risk.supported : animatedScore >= 70 ? detectorText.risk.blocked : animatedScore >= 31 ? detectorText.risk.high : detectorText.risk.light;
+  const riskLabel = !ringActive ? detectorText.risk.waiting : !hasChecked ? detectorText.risk.checking : animatedScore === 0 ? (fullCoverage ? detectorText.risk.supported : detectorText.risk.unknown) : animatedScore >= 70 ? detectorText.risk.blocked : animatedScore >= 31 ? detectorText.risk.high : detectorText.risk.light;
   const riskLabelClass = !ringActive ? "bg-stone-100 text-stone-500" : !hasChecked ? "bg-blue-50 text-blue-600" : animatedScore === 0 ? "bg-emerald-50 text-emerald-700" : animatedScore >= 70 ? "bg-red-50 text-red-600" : animatedScore >= 31 ? "bg-orange-50 text-orange-700" : "bg-amber-50 text-amber-700";
   const ipIntel = serverResult?.ipIntelligence;
   const primaryIpSource = ipIntel?.sources
@@ -257,20 +271,24 @@ export function Detector({ locale = "zh" }: Props) {
         <div className="relative mt-10 text-center font-black">
           <div className="py-3 leading-tight md:py-4">
             {hasChecked ? (
-              <>
-                <div className="text-2xl text-[#0b1220] md:inline md:text-3xl">
-                  <span>{confidenceText}</span>
-                  <span className="mx-1 text-[#d97757]">{suspectedRegion}</span>
-                  <span>{environmentSuffix}</span>
-                  <span className="hidden md:inline">：</span>
-                </div>
-                <div className="mt-2 text-2xl md:mt-0 md:inline md:text-3xl">
-                  <span className="text-stone-600">{copy.riskPrefix}</span>
-                  <span className="mx-1 text-red-600">{animatedScore}%</span>
-                  <span className="text-stone-400">·</span>
-                  <span className="ml-2 text-[#c05f3c]">{detectorText.status[status]}</span>
-                </div>
-              </>
+              rawScore === 0 && !fullCoverage ? (
+                <div className="text-2xl text-[#0b1220] md:text-3xl">{detectorText.coverageInsufficient}</div>
+              ) : (
+                <>
+                  <div className="text-2xl text-[#0b1220] md:inline md:text-3xl">
+                    <span>{confidenceText}</span>
+                    <span className="mx-1 text-[#d97757]">{suspectedRegion}</span>
+                    <span>{environmentSuffix}</span>
+                    <span className="hidden md:inline">：</span>
+                  </div>
+                  <div className="mt-2 text-2xl md:mt-0 md:inline md:text-3xl">
+                    <span className="text-stone-600">{copy.riskPrefix}</span>
+                    <span className="mx-1 text-red-600">{animatedScore}%</span>
+                    <span className="text-stone-400">·</span>
+                    <span className="ml-2 text-[#c05f3c]">{detectorText.status[status]}</span>
+                  </div>
+                </>
+              )
             ) : (
               <div className="text-2xl text-[#0b1220] md:text-3xl">{copy.idleReport}</div>
             )}
@@ -282,17 +300,30 @@ export function Detector({ locale = "zh" }: Props) {
         <div className="grid gap-6 lg:grid-cols-[260px_1fr] xl:grid-cols-[280px_1fr]">
           <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-5">
             <ScoreRing score={animatedScore} checked={ringActive} text={detectorText} />
-            <div className={`mt-5 rounded-full px-4 py-2 text-sm font-bold ${riskLabelClass}`}>{riskLabel}</div>
+            <div className="mt-3 text-xs font-bold text-stone-500">{detectorText.coverageLabel} {hasChecked ? `${coverage}% (${scoreSummary.evaluatedCount}/${scoreSummary.totalCount})` : "--"}</div>
+            <div className={`mt-3 rounded-full px-4 py-2 text-sm font-bold ${riskLabelClass}`}>{riskLabel}</div>
           </div>
           <div>
             <div className="flex items-center justify-between gap-4">
-              <h3 className="text-xl font-black text-[#0b1220]">{hasChecked ? copy.signalCount(signals.length + ipMetricCards.length, true) : copy.title}</h3>
-              <span className="rounded-full bg-[#fffaf3] px-3 py-1 text-xs font-bold text-stone-500">{copy.signalCount(signals.length + ipMetricCards.length, false)}</span>
+              <h3 className="text-xl font-black text-[#0b1220]">{copy.title}</h3>
+              <span className="rounded-full bg-[#fffaf3] px-3 py-1 text-xs font-bold text-stone-500">{hasChecked ? copy.signalHitSummary(scoreSummary.hitCount, scoreSummary.totalCount) : copy.signalCount(signals.length + ipMetricCards.length, false)}</span>
             </div>
             <div className="mt-2 md:mt-4"><SignalList signals={signals} extraCards={ipMetricCards} /></div>
+            {!detectionConfig.services.ipIntel?.enabled && <p className="mt-3 rounded-xl bg-stone-50 px-3 py-2 text-xs font-semibold leading-5 text-stone-500 ring-1 ring-stone-200">{detectorText.browserOnlyNote}</p>}
           </div>
         </div>
       </div>
+
+      {hasChecked && (
+        <div className="mt-5 rounded-[2rem] border border-stone-200 bg-white/80 p-5 shadow-xl shadow-orange-950/5 md:p-6">
+          <h3 className="text-xl font-black text-[#0b1220]">{detectorText.recommendationsTitle}</h3>
+          <ul className="mt-3 grid gap-2 text-sm font-semibold leading-6 text-stone-600 md:grid-cols-2">
+            {recommendationList.map((item) => (
+              <li key={item} className="rounded-xl bg-[#fffaf3] px-3 py-2 ring-1 ring-stone-200">{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {showRegionPicker && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] grid place-items-center bg-black/45 p-4" onClick={() => setShowRegionPicker(false)}>

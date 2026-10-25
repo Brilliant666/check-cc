@@ -55,9 +55,20 @@ export function accessStatus(score: number): AccessStatus {
 }
 
 export function recommendations(score: number, profile: RegionProfile | null) {
-  void score;
-  void profile;
-  return [];
+  const items: string[] = [];
+  if (score >= 70) {
+    items.push("命中多项高风险环境信号。若当前环境与账号常用地区不一致，建议先停止在该环境登录或订阅，核对一致后再使用。");
+  } else if (score >= 31) {
+    items.push("存在部分地区相关信号。建议核对浏览器语言、系统时区与账号资料是否一致，并避免频繁切换网络环境。");
+  } else {
+    items.push("未发现明显的高风险组合，但结果不代表账号一定安全；平台风控还会参考登录行为和支付信息。");
+  }
+  if (profile) {
+    items.push(`当前画像与「${profile.name}」特征存在重合；Claude 的支持地区和风控政策可能变化，请以官方说明为准。`);
+  }
+  items.push("不要通过代理、伪造时区或修改语言来规避地区限制；环境与账号资料不一致可能增加风险。");
+  items.push("检测仅基于浏览器端信号，不代表 Anthropic 的实际风控结论。");
+  return items;
 }
 
 export function evaluateAccess(input: Input) {

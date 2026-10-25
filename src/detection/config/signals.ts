@@ -17,5 +17,7 @@ export const signalConfig: Record<string, DetectionSignalConfig> = {
   ipAddress: { enabled: true, labelKey: "ipAddress", source: "server", weight: 0, order: 220 },
   browserIpLocation: { enabled: true, labelKey: "browserIpLocation", source: "server", weight: 0, order: 230 },
   browserIpOrg: { enabled: true, labelKey: "browserIpOrg", source: "server", weight: 0, order: 240 },
-  os: { enabled: true, labelKey: "os", source: "browser", weight: 0, order: 250 },
+  browser: { enabled: true, labelKey: "browser", source: "browser", weight: 0, order: 245 },
+  device: { enabled: true, labelKey: "device", source: "browser", weight: 0, order: 250 },
+  os: { enabled: true, labelKey: "os", source: "browser", weight: 0, order: 260 },
 };
