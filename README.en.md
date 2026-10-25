@@ -1,39 +1,56 @@
-<!-- CheckCC English project documentation for open-source users, covering project purpose, online demo, detection capabilities, and deployment. -->
-# CheckCC | Claude Code Environment Check, Account Suspension Risk & Runtime IP Reputation
+<!-- CheckCC English project documentation for open-source users, covering project purpose, capability boundaries, development, and deployment. -->
+# CheckCC (Community Fork) | Claude Environment Check & Account-Risk Self-Assessment
 
 [English](README.en.md) | [中文](README.md)
 
-<p align="center">
-  <img src="./docs/images/en/checkcc-homepage.png?v=070801" alt="CheckCC homepage" width="900" />
-</p>
+> This repository is a community fork of [yacuo/check-cc](https://github.com/yacuo/check-cc), maintained by [Brilliant666](https://github.com/Brilliant666).
+>
+> This fork currently performs browser-side environment checks only. It does not request your IP address, network egress, account data, or cookies. Results highlight obvious environment-profile conflicts; they are not an official Claude or Anthropic judgment.
 
-[CheckCC.org](https://checkcc.org) is a Claude runtime environment checker and account-risk analysis tool for users who are creating a Claude account, subscribing to Claude Pro, applying for Claude API access, using Claude Code, or concerned about account restrictions, subscription failures, and high-risk environments.
+[CheckCC.org](https://checkcc.org) is the upstream online demo. This fork prioritizes trustworthy reporting: unevaluated signals are no longer scored as zero risk, the report shows evaluable coverage, and the UI states clearly when network-layer checks are disabled.
 
-The project analyzes browser fingerprint, system timezone, language preferences, Intl Locale, User-Agent, runtime container, device environment, network exit, and regional profile signals to identify environment conflicts. It helps users detect high-risk Claude environments, pre-restriction anomaly signals, account limitation risk, Claude Pro subscription risk, Claude API application risk, and Claude Code runtime risk before taking action.
+## Capability boundaries
 
-## Official website: <https://checkcc.org>
+| Capability | Status |
+| --- | --- |
+| Browser-side environment sampling | Implemented |
+| 10 weighted risk signals | Implemented |
+| 3 context signals (not scored) | Implemented |
+| Coverage and "not evaluated" states | Implemented |
+| Risk-based next-step recommendations | Implemented |
+| Chinese, Traditional Chinese, Russian, English | Implemented |
+| Static export and self-hosting | Implemented |
+| IP / ASN / network egress intelligence | Not enabled |
+| Account, cookie, or chat access | Not implemented |
+| Desktop one-click repair | Out of scope for this repository |
 
-- GitHub repository: <https://github.com/yacuo/check-cc>
+### Weighted signals
 
-### Coming soon: a one-click desktop repair app for Claude environments
+| Signal | Weight |
+| --- | ---: |
+| System timezone | 26 |
+| Browser language | 20 |
+| Regional font traits | 16 |
+| Language/script traits | 12 |
+| Vendor font anomalies | 10 |
+| Browser regional traits | 8 |
+| Device regional traits | 6 |
+| Intl locale | 6 |
+| Timezone offset | 4 |
+| Emoji rendering style | 4 |
 
-#### Star this project to receive the desktop repair app release update first.
+Browser/application environment, device/system clues, and operating system are shown as context only and do not affect the score.
 
-#### Free desktop app for macOS / Windows / Linux — now in private beta
+### Scoring
 
-Want early access? Star the project and stay tuned.
-
-<p align="center">
-  <img src="https://checkcc.org/Check-CC-Lock.png" alt="Check CC Lock desktop app preview" width="900" />
-</p>
-
-## Resource Support
-
-Development resources and AI token usage for this project are sponsored by 全球 AI Token 综合对比 <https://tokenplan.vip> (tokenplan.vip).
+- Only weighted signals with an actual value participate in scoring.
+- The score is normalized over evaluated weight, and the report shows coverage.
+- Unevaluated signals are shown as "not evaluated" or "unknown", never as zero risk.
+- The score is a heuristic risk hint. It does not predict Claude account status or represent Anthropic's actual risk decisions.
 
 ## Screenshots
 
-### Detection signals
+The screenshots below show the upstream UI. Signal rows and copy in this fork may differ slightly.
 
 <p align="center">
   <img src="./docs/images/en/checkcc-detection-signals.png?v=070801" alt="CheckCC detection signals" width="900" />
@@ -43,74 +60,64 @@ Development resources and AI token usage for this project are sponsored by 全�
 | --- | --- |
 | <img src="./docs/images/en/checkcc-detection-principles.png?v=070801" alt="CheckCC detection principles" width="430" /> | <img src="./docs/images/en/checkcc-supported-regions.png?v=070801" alt="CheckCC supported regions" width="430" /> |
 
-## CheckCC WeChat Feedback Groups
+## Use cases
 
-| Group 2 |
-| :---: |
-| <img src="https://cdn.ddkk.com/images/weixin/checkcc/081002.png" alt="CheckCC WeChat feedback group 2" width="220" /> |
+[CheckCC](https://checkcc.org) is suitable for learning, secondary development, and self-hosting. It is aimed at users creating a Claude account, subscribing to Claude Pro, applying for Claude API access, using Claude Code, or concerned about account restrictions and subscription failures. It focuses on environment risk hints and does not read Claude account content or replace official Claude or Anthropic judgments.
 
-## Overview
-
-[CheckCC](https://checkcc.org) is suitable for learning, secondary development, and self-hosting. The project focuses on environment risk hints before and after Claude usage. It does not read Claude account content and does not replace official Claude or Anthropic judgments.
-
-**If you use this project for secondary development, redeployment, or derivative releases, please retain the original copyright, open-source license notice, and project source: <https://github.com/yacuo/check-cc.git>**
+If you use this project for secondary development, redeployment, or derivative releases, retain the original copyright, open-source license notice, and project source: <https://github.com/yacuo/check-cc.git>.
 
 ## How it works
 
-Claude account risk is not determined by a single IP address or region. It is shaped by a multi-signal environment profile that includes browser fingerprint, system timezone, language preferences, network exit, runtime container, device environment, and payment context. [CheckCC](https://checkcc.org) includes 40+ environment detection dimensions and combines client-side environment sampling, server-side request analysis, IP intelligence, runtime feature recognition, and signal-consistency checks into a readable risk assessment for Claude account restriction risk, Claude Pro subscription risk, Claude API application risk, and Claude Code runtime risk.
+Claude account risk is usually shaped by a combination of timezone, browser language, internationalization settings, fonts, device traits, and runtime container rather than a single IP or region. This fork samples those signals in the browser and turns them into a readable risk hint.
 
-Core detection dimensions include:
+Core dimensions:
 
-- **Browser language**: checks whether the preferred browser language matches the expected region.
-- **System timezone**: checks whether the timezone is consistent with the regional profile.
-- **Intl Locale**: checks whether JavaScript internationalization settings expose unusual language or region traits.
-- **User-Agent**: identifies browser, operating system, and client container characteristics.
-- **Runtime container**: detects WebView, automation-like environments, or non-standard clients.
-- **Signal consistency**: evaluates whether language, timezone, region, and browser signals conflict with each other.
+- **Browser language**: whether the preferred browser language matches the target region.
+- **System timezone and offset**: whether the timezone and UTC offset match the regional profile.
+- **Intl locale**: whether JavaScript internationalization exposes unusual language or region traits.
+- **Script and fonts**: simplified/traditional Chinese script traits and regional/vendor font matches.
+- **Runtime environment**: browsers, in-app WebViews, domestic browsers, and mobile device traits.
+- **Emoji rendering style**: a secondary signal for system and browser consistency.
 
-These signals cannot prove that an account is safe or will be restricted, but they can help users detect obvious environment profile conflicts early.
+These signals cannot prove that an account is safe or will be restricted, but they can reveal obvious environment-profile conflicts early.
 
 ## Reducing ban risk
 
-[CheckCC](https://checkcc.org) results are for reference only and do not represent official conclusions from Claude or Anthropic. Before using Claude, Claude Code, Claude Pro, or applying for Claude API access, you can check your environment first.
+CheckCC results are for reference only and do not represent official conclusions from Claude or Anthropic. Before using Claude, Claude Code, Claude Pro, or applying for Claude API access, you can check your environment first.
 
 General suggestions:
 
-- Keep IP, system timezone, browser language, and account region as consistent as possible.
+- Keep network egress, system timezone, browser language, and account region as consistent as possible.
 - Avoid frequently switching countries, proxy nodes, devices, or browser environments.
 - Avoid signing in through WebView, automated browsers, unusual clients, or unstable containers.
 - Check the environment before subscribing to Claude Pro, applying for Claude API, or using Claude Code.
-- If high-risk signals are detected, adjust the environment before signing in, subscribing, or applying for related services.
-- Prefer stable long-term network exits and consistent device environments.
-
-## Tech stack
-
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
-- pnpm
-
-## Features
-
-- 40+ environment signals and risk hints
-- Browser-side environment sampling and runtime feature recognition
-- Pre-use environment checks for Claude Web, Pro, API, and Claude Code
-- Multilingual page structure and responsive UI
-- Suitable for learning, secondary development, and self-hosting
+- If high-risk signals are detected, adjust the environment before signing in, subscribing, or applying.
+- Prefer stable long-term network egress and consistent device environments.
+- Do not spoof timezone or language to bypass regional restrictions; inconsistent environment and account data can increase risk.
 
 ## Privacy
 
-By default, the project only performs local browser environment checks:
+By default, the project performs local browser environment checks only:
 
 - No Claude login required
 - No Claude account access
 - No password access
-- No Cookie access
+- No cookie access
 - No chat content access
+- No IP, ASN, or network egress requests
 - No default upload of detection results
 
+## Tech stack
+
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- pnpm 9
+
 ## Quick start
+
+Requires Node.js >= 20.9 and pnpm 9.
 
 ```bash
 pnpm install
@@ -119,34 +126,58 @@ pnpm dev
 
 Open: <http://localhost:3000>
 
-## Build
+## Build and preview
+
+The project uses Next.js static export (`output: "export"`). Build output is written to `out/`:
 
 ```bash
 pnpm build
-pnpm start
+pnpm preview
 ```
+
+`pnpm preview` serves `out/` with a static file server. There is no Node server runtime, so do not use `next start`.
 
 ## Self-hosting
 
-You can deploy this project to Vercel, Cloudflare Pages, Netlify, or your own server. You can also extend the detection rules, UI, and deployment workflow as needed.
+Deploy the `out/` directory to any static host, such as Cloudflare Pages, Netlify, Vercel, or your own Nginx:
 
-## Use cases
+```bash
+pnpm install
+pnpm build
+# serve out/ as the site root
+```
 
-- Learning browser environment detection
-- Studying Claude runtime environment risk signals
-- Building a personal environment checker
-- Using it as a base for secondary development
+The upstream pages still point canonical, OG, and live-demo links to checkcc.org. Replace those values with your own domain before deploying so traffic and search results do not flow to the wrong site.
+
+## Development and checks
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm check
+```
+
+`pnpm check` runs lint, type checking, and unit tests. GitHub Actions runs the same checks on push and pull requests, plus a static build.
+
+Tests cover score normalization, coverage, unknown signals, zero-weight signals, IP classification, and locale copy completeness.
+
+## Feedback
+
+Please use GitHub Issues: <https://github.com/Brilliant666/check-cc/issues>
 
 ## Disclaimer
 
-[CheckCC](https://checkcc.org) provides risk hints based on local browser environment signals only. It does not represent official Claude or Anthropic judgments. Do not use the result as the only basis for account safety, subscription status, or appeal decisions.
+CheckCC provides risk hints based on local browser environment signals only. It does not represent official Claude or Anthropic judgments. Do not use the result as the only basis for account safety, subscription status, or appeal decisions.
 
-## License
+## License and source
 
 This project is open-sourced under the MIT License. Copyright © yacuo / CheckCC.
 
 You may use, modify, and redistribute this project freely.
 
-Any copy, secondary development version, self-hosted site, or substantial portion of the project must retain the original copyright and license notice, and credit the source: <https://github.com/yacuo/check-cc.git>
+Any copy, secondary development version, self-hosted site, or substantial portion of the project must retain the original copyright and license notice, and credit the source: <https://github.com/yacuo/check-cc.git>.
 
-If you redeploy this project, please keep the footer credit or repository link so visitors can find the original project.
+If you redeploy this project, keep the footer credit or repository link so visitors can find the original project.
+
+Changes in this fork are also released under the MIT License. This fork is not affiliated with the upstream project; upstream demo, desktop-app plans, and feedback-group information do not apply to this fork.
