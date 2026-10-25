@@ -24,7 +24,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "preview": "npx --yes serve out",
+    "preview": "npx --yes serve out -l 4173",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

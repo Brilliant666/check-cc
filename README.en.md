@@ -140,7 +140,7 @@ pnpm build
 pnpm preview
 ```
 
-`pnpm preview` serves `out/` with a static file server. There is no Node server runtime, so do not use `next start`.
+`pnpm preview` serves `out/` at <http://localhost:4173> with a static file server. There is no Node server runtime, so do not use `next start`.
 
 ## Self-hosting
 

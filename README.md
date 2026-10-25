@@ -140,7 +140,7 @@ pnpm build
 pnpm preview
 ```
 
-`pnpm preview` 使用静态文件服务器预览 `out/`。本项目没有 Node 服务端运行时，因此不要使用 `next start`。
+`pnpm preview` 使用静态文件服务器在 <http://localhost:4173> 预览 `out/`。本项目没有 Node 服务端运行时，因此不要使用 `next start`。
 
 ## 自部署
 
