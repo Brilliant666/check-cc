@@ -34,26 +34,27 @@ describe("summarizeSignals", () => {
     });
   });
 
-  it("normalizes the score over evaluated weight when coverage is incomplete", () => {
+  it("does not inflate the score when coverage is incomplete", () => {
     const summary = summarizeSignals([
       signal({ id: "a", weight: 20, contribution: 10 }),
       signal({ id: "b", weight: 20, contribution: 0, evaluated: false }),
     ]);
 
-    expect(summary.score).toBe(20);
+    expect(summary.score).toBe(10);
     expect(summary.coverage).toBe(50);
     expect(summary.evaluatedCount).toBe(1);
     expect(summary.totalCount).toBe(2);
     expect(summary.hitCount).toBe(1);
   });
 
-  it("treats evaluated false as unknown instead of zero risk", () => {
+  it("keeps a failed network lookup from adding risk", () => {
     const summary = summarizeSignals([
-      signal({ id: "a", weight: 20, contribution: 10 }),
-      signal({ id: "b", weight: 20, contribution: 0, evaluated: false }),
+      signal({ id: "timezone", weight: 26, contribution: 26 }),
+      signal({ id: "country", weight: 20, contribution: 0, evaluated: false }),
     ]);
 
-    expect(summary.score).not.toBe(10);
+    expect(summary.score).toBe(26);
+    expect(summary.coverage).toBe(57);
   });
 
   it("caps the normalized score at 100", () => {
@@ -148,13 +149,21 @@ describe("locale content", () => {
     for (const text of Object.values(detectorLocaleText)) {
       expect(text.coverageLabel).not.toBe("");
       expect(text.coverageInsufficient).not.toBe("");
-      expect(text.browserOnlyNote).not.toBe("");
+      expect(text.network.toggleLabel).not.toBe("");
+      expect(text.network.toggleHint).not.toBe("");
+      expect(text.network.idle).not.toBe("");
+      expect(text.network.checking).not.toBe("");
+      expect(text.network.success).not.toBe("");
+      expect(text.network.failed).not.toBe("");
+      expect(text.network.disabled).not.toBe("");
       expect(text.recommendationsTitle).not.toBe("");
       expect(text.recommendations.high).not.toBe("");
       expect(text.recommendations.medium).not.toBe("");
       expect(text.recommendations.low).not.toBe("");
       expect(text.recommendations.incomplete).not.toBe("");
       expect(text.recommendations.limitation).not.toBe("");
+      expect(text.recommendations.limitationNetwork).not.toBe("");
+      expect(text.recommendations.limitationNetworkFailed).not.toBe("");
       expect(text.risk.unknown).not.toBe("");
       expect(text.report.title).not.toBe("");
       expect(text.report.copy).not.toBe("");

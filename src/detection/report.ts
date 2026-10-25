@@ -10,11 +10,16 @@ export type DetectionReportInput = {
   riskLabel: string;
   regionLabel: string;
   recommendations: string[];
+  limitation?: string;
   generatedAt?: Date;
 };
 
 function reportDate(input: DetectionReportInput) {
   return (input.generatedAt ?? new Date()).toISOString();
+}
+
+function limitationNote(input: DetectionReportInput) {
+  return input.limitation ?? input.text.recommendations.limitation;
 }
 
 function signalValue(signal: SignalView, text: DetectorLocaleText) {
@@ -47,13 +52,11 @@ export function buildTextReport(input: DetectionReportInput) {
     "",
     text.report.recommendations,
     ...input.recommendations.map((item, index) => `${index + 1}. ${item}`),
-    "",
-    text.recommendations.limitation,
   ].join("\n");
 }
 
 export function buildJsonReport(input: DetectionReportInput) {
-  const { text, summary } = input;
+  const { summary } = input;
   return JSON.stringify(
     {
       tool: "CheckCC",
@@ -79,7 +82,7 @@ export function buildJsonReport(input: DetectionReportInput) {
         evaluated: signal.evaluated !== false,
       })),
       recommendations: input.recommendations,
-      limitation: text.recommendations.limitation,
+      limitation: limitationNote(input),
     },
     null,
     2,

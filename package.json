@@ -22,7 +22,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 5000",
     "build": "next build",
     "preview": "npx --yes serve out -l 4173",
     "lint": "eslint",

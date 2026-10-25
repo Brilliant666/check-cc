@@ -3,24 +3,23 @@
 // CheckCC 的浏览器端检测组件，用于执行环境扫描、展示风险信号、进度状态和检测结果。
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import type { CheckResponse, SignalResult } from "@/detection/types";
+import type { SignalResult } from "@/detection/types";
 import {
   animateProgress,
   defaultSignals,
-  isPublicIp,
-  localizeSignalValue,
   normalizeRegion,
   regions,
   scanSteps,
   sleep,
   summarizeSignals,
-  type BrowserIpIntel,
   type SignalView,
 } from "@/detection/client-engine";
-import { detectorLocaleText, localizeLocation, type DetectorLocaleText, type TargetRegion } from "@/detection/locale";
+import { countryDisplayName, detectorLocaleText, type DetectorLocaleText, type TargetRegion } from "@/detection/locale";
 import { detectionConfig } from "@/detection/config";
+import { lookupNetworkIntel, providerHost, type NetworkIntel } from "@/detection/ip-intel";
 import { buildJsonReport, buildTextReport, reportFilename } from "@/detection/report";
 import { runDetection, type DetectionRunResult } from "@/detection/runner";
+import { countryRisk } from "@/detection/scoring";
 import { messages, type LocaleCode } from "@/i18n/messages";
 
 type Props = { lang?: "zh" | "en"; locale?: LocaleCode };
@@ -56,28 +55,18 @@ function signalBadgeTone(signal: SignalView) {
   return signal.contribution > 0 && signal.state === "done" ? "bg-white text-red-600" : "bg-white/70";
 }
 
-function SignalList({ signals, extraCards = [] }: { signals: SignalView[]; extraCards?: Array<{ label: string; value: string }> }) {
-  const items = [
-    ...signals.map((signal) => ({ type: "signal" as const, key: `${signal.source}-${signal.id}`, signal })),
-    ...extraCards.map((card) => ({ type: "card" as const, key: `card-${card.label}`, card })),
-  ];
-
+function SignalList({ signals }: { signals: SignalView[] }) {
   return (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-2 lg:min-h-[216px] lg:content-between xl:grid-cols-3 2xl:grid-cols-4">
-      {items.map((item) => item.type === "signal" ? (
-        <div key={item.key} className={`rounded-xl border px-3 py-2 transition ${signalTone(item.signal)}`}>
+      {signals.map((signal) => (
+        <div key={`${signal.source}-${signal.id}`} className={`rounded-xl border px-3 py-2 transition ${signalTone(signal)}`}>
           <div className="flex min-w-0 items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <div className={`truncate text-sm font-semibold ${signalLabelTone(item.signal)}`}>{item.signal.label}</div>
-              <div className="truncate text-xs font-semibold opacity-90">{item.signal.value}</div>
+              <div className={`truncate text-sm font-semibold ${signalLabelTone(signal)}`}>{signal.label}</div>
+              <div className="truncate text-xs font-semibold opacity-90">{signal.value}</div>
             </div>
-            <div className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${signalBadgeTone(item.signal)}`}>{item.signal.state === "done" ? `+${item.signal.contribution}` : "--"}</div>
+            <div className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${signalBadgeTone(signal)}`}>{signal.state === "done" ? `+${signal.contribution}` : "--"}</div>
           </div>
-        </div>
-      ) : (
-        <div key={item.key} className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-700 transition">
-          <div className="truncate text-sm font-semibold text-[#0b1220]">{item.card.label}</div>
-          <div className="truncate text-xs opacity-75">{item.card.value}</div>
         </div>
       ))}
     </div>
@@ -87,10 +76,15 @@ function SignalList({ signals, extraCards = [] }: { signals: SignalView[]; extra
 export function Detector({ locale = "zh" }: Props) {
   const copy = messages[locale].detector;
   const detectorText = detectorLocaleText[locale];
+  const ipIntelConfig = detectionConfig.services.ipIntel;
+  const ipIntelAvailable = Boolean(ipIntelConfig?.enabled);
+  const networkProvider = ipIntelConfig ? providerHost(ipIntelConfig.endpoint) : "";
   const [region, setRegion] = useState<TargetRegion>("auto");
   const [browserResult, setBrowserResult] = useState<DetectionRunResult["browserResult"] | null>(null);
-  const [serverResult, setServerResult] = useState<CheckResponse | null>(null);
-  const [browserIpIntel, setBrowserIpIntel] = useState<BrowserIpIntel | null>(null);
+  const [networkIntel, setNetworkIntel] = useState<NetworkIntel | null>(null);
+  const [networkEnabled, setNetworkEnabled] = useState(ipIntelAvailable);
+  const [networkUsed, setNetworkUsed] = useState(ipIntelAvailable);
+  const [networkState, setNetworkState] = useState<"idle" | "checking" | "ok" | "failed" | "disabled">("idle");
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [activeSignal, setActiveSignal] = useState(-1);
@@ -100,39 +94,52 @@ export function Detector({ locale = "zh" }: Props) {
   const signals = useMemo<SignalView[]>(() => {
     const map = new Map<string, SignalResult>();
     for (const signal of browserResult?.signals ?? []) map.set(signal.id, signal);
-    for (const signal of serverResult?.signals ?? []) {
-      if (signal.value && signal.value !== detectorLocaleText.zh.unknown) {
-        if (signal.id === "country") map.set("country", { ...signal, label: detectorText.signalLabels.country, value: localizeSignalValue(signal.value, detectorText) });
-        else map.set(`server-${signal.id}`, { ...signal, label: detectorText.signalLabels[signal.id] ?? signal.label, value: signal.value === detectorLocaleText.zh.signalValues.read ? detectorText.signalValues.read : localizeSignalValue(signal.value, detectorText) });
+
+    if (networkUsed && networkIntel) {
+      const code = networkIntel.countryCode?.toUpperCase() ?? null;
+      if (code) {
+        const weight = detectionConfig.signals.country.weight;
+        const match = countryRisk(code, normalizeRegion(region));
+        map.set("country", {
+          id: "country",
+          label: detectorText.signalLabels.country,
+          value: `${countryDisplayName(code, locale)} (${code})`,
+          score: match.score,
+          weight,
+          contribution: Math.round(match.score * weight),
+          source: "server",
+          evaluated: true,
+        });
       }
+      map.set("ipAddress", { id: "ipAddress", label: detectorText.signalLabels.ipAddress, value: networkIntel.ip, score: 0, weight: 0, contribution: 0, source: "server", evaluated: true });
+      const location = [networkIntel.city, networkIntel.region].filter(Boolean).join(" / ");
+      if (location) map.set("browserIpLocation", { id: "browserIpLocation", label: detectorText.signalLabels.browserIpLocation, value: location, score: 0, weight: 0, contribution: 0, source: "server", evaluated: true });
+      if (networkIntel.asn) map.set("browserIpAsn", { id: "browserIpAsn", label: detectorText.signalLabels.browserIpAsn, value: networkIntel.asn, score: 0, weight: 0, contribution: 0, source: "server", evaluated: true });
+      const organization = networkIntel.org || networkIntel.isp;
+      if (organization) map.set("browserIpOrg", { id: "browserIpOrg", label: detectorText.signalLabels.browserIpOrg, value: organization, score: 0, weight: 0, contribution: 0, source: "server", evaluated: true });
     }
-    const detectedCountry = serverResult?.ipIntelligence?.detectedCountry || browserIpIntel?.country;
-    if (detectedCountry && !map.has("country")) map.set("country", { id: "country", label: detectorText.signalLabels.country, value: localizeLocation(detectedCountry, locale), score: 0, weight: 20, contribution: 0, source: "server" });
-    const proxyCountry = browserIpIntel?.country || serverResult?.ipIntelligence?.detectedCountry;
-    if (proxyCountry) map.set("proxyCountry", { id: "proxyCountry", label: detectorText.signalLabels.proxyCountry, value: localizeLocation(proxyCountry, locale), score: 0, weight: 0, contribution: 0, source: "server" });
-    const sourceIps = serverResult?.ipIntelligence?.sources.map((item) => item.ip).filter((ip): ip is string => typeof ip === "string" && isPublicIp(ip)) ?? [];
-    const detectedIpv4 = sourceIps.find((ip) => !ip.includes(":"));
-    const browserPublicIp = browserIpIntel?.ip && isPublicIp(browserIpIntel.ip) ? browserIpIntel.ip : null;
-    const serverPublicIp = serverResult?.ipIntelligence?.detectedIp && isPublicIp(serverResult.ipIntelligence.detectedIp) ? serverResult.ipIntelligence.detectedIp : null;
-    const detectedIp = detectedIpv4 || browserPublicIp || serverPublicIp;
-    if (detectedIp) map.set("ipAddress", { id: "ipAddress", label: detectorText.signalLabels.ipAddress, value: detectedIp, score: 0, weight: 0, contribution: 0, source: "server" });
-    if (browserIpIntel?.location) map.set("browserIpLocation", { id: "browserIpLocation", label: detectorText.signalLabels.browserIpLocation, value: localizeLocation(browserIpIntel.location, locale), score: 0, weight: 0, contribution: 0, source: "server" });
-    if (browserIpIntel?.asn) map.set("browserIpAsn", { id: "browserIpAsn", label: detectorText.signalLabels.browserIpAsn, value: browserIpIntel.asn, score: 0, weight: 0, contribution: 0, source: "server" });
-    if (browserIpIntel?.org) map.set("browserIpOrg", { id: "browserIpOrg", label: detectorText.signalLabels.browserIpOrg, value: browserIpIntel.org, score: 0, weight: 0, contribution: 0, source: "server" });
-    const merged = defaultSignals.map((item, index) => {
+
+    const visibleDefaults = defaultSignals.filter((item) => {
+      if (item.source !== "server") return true;
+      if (!networkUsed) return false;
+      return networkState !== "failed" || item.weight > 0;
+    });
+
+    const merged = visibleDefaults.map((item, index) => {
       const found = map.get(item.id);
       const label = detectorText.signalLabels[item.id] ?? item.label;
       if (!found) {
         const state = progress === 100 ? "unavailable" : index === activeSignal ? "running" : "pending";
-        return { ...item, label, value: progress === 100 ? detectorText.notEvaluated : detectorText.pending, state } as SignalView;
+        const value = progress === 100 ? (item.id === "country" && networkState === "failed" ? detectorText.network.unavailable : detectorText.notEvaluated) : detectorText.pending;
+        return { ...item, label, value, state } as SignalView;
       }
       return { ...item, ...found, label: found.label || label, state: found.evaluated === false ? "unknown" : "done" } as SignalView;
     });
     for (const signal of map.values()) {
-      if (!defaultSignals.some((item) => item.id === signal.id)) merged.push({ ...signal, state: signal.evaluated === false ? "unknown" : progress === 100 ? "done" : "running" });
+      if (!visibleDefaults.some((item) => item.id === signal.id)) merged.push({ ...signal, state: signal.evaluated === false ? "unknown" : progress === 100 ? "done" : "running" });
     }
     return merged;
-  }, [browserResult, serverResult, browserIpIntel, activeSignal, progress, detectorText, locale]);
+  }, [browserResult, networkIntel, networkUsed, networkState, region, activeSignal, progress, detectorText, locale]);
 
   const scoreSummary = useMemo(() => summarizeSignals(signals), [signals]);
   const rawScore = scoreSummary.score;
@@ -141,16 +148,18 @@ export function Detector({ locale = "zh" }: Props) {
   const animatedScore = loading ? Math.round((rawScore * progress) / 100) : rawScore;
   const status = rawScore >= 70 ? "restricted" : rawScore >= 31 ? "possibly_supported" : rawScore > 0 ? "unknown" : fullCoverage ? "supported" : "unknown";
   const pageRegionCode = region !== "auto" ? region : locale === "zh-HK" ? "hk" : locale === "ru" ? "ru" : "cn";
-  const detectedRegionCode = (serverResult?.matchedRegion ?? browserResult?.matchedRegion ?? pageRegionCode) as TargetRegion;
+  const networkMatchedRegion = networkUsed && networkIntel ? countryRisk(networkIntel.countryCode, normalizeRegion(region)).matchedRegion : null;
+  const detectedRegionCode = (browserResult?.matchedRegion ?? networkMatchedRegion ?? pageRegionCode) as TargetRegion;
   const pageRegion = detectorText.regions[detectedRegionCode];
   const russianSummaryRegions: Record<TargetRegion, string> = { auto: "российской", cn: "китайской", hk: "гонконгской", ru: "российской", ir: "иранской" };
   const suspectedRegion = rawScore > 0 ? locale === "ru" ? russianSummaryRegions[detectedRegionCode] : pageRegion : detectorText.confidence.supportedRegion;
   const confidenceText = rawScore >= 70 ? detectorText.confidence.high : rawScore >= 31 ? detectorText.confidence.medium : rawScore > 0 ? detectorText.confidence.low : detectorText.confidence.safe;
   const environmentSuffix = locale === "ru" ? "среды" : copy.environmentSuffix;
+  const limitationText = !networkUsed ? detectorText.recommendations.limitation : networkState === "ok" ? detectorText.recommendations.limitationNetwork : detectorText.recommendations.limitationNetworkFailed;
   const recommendationList = [
     coverage < 100 ? detectorText.recommendations.incomplete : null,
     rawScore >= 70 ? detectorText.recommendations.high : rawScore >= 31 ? detectorText.recommendations.medium : detectorText.recommendations.low,
-    detectorText.recommendations.limitation,
+    limitationText,
   ].filter((item): item is string => Boolean(item));
 
   const reportInput = () => ({
@@ -162,6 +171,7 @@ export function Detector({ locale = "zh" }: Props) {
     riskLabel,
     regionLabel: detectorText.regions[region],
     recommendations: recommendationList,
+    limitation: limitationText,
   });
 
   const copyReport = async () => {
@@ -190,14 +200,15 @@ export function Detector({ locale = "zh" }: Props) {
   const runCheck = async () => {
     setLoading(true);
     setBrowserResult(null);
-    setServerResult(null);
-    setBrowserIpIntel(null);
+    setNetworkIntel(null);
     setProgress(0);
     setActiveSignal(0);
 
-    let local: DetectionRunResult["browserResult"] | null = null;
-    let remote: CheckResponse | null = null;
+    const useNetwork = networkEnabled && ipIntelAvailable;
+    setNetworkUsed(useNetwork);
+    setNetworkState(useNetwork ? "checking" : "disabled");
 
+    let local: DetectionRunResult["browserResult"] | null = null;
     const checkRegion = normalizeRegion(region);
 
     for (let index = 0; index < scanSteps.length; index += 1) {
@@ -210,23 +221,27 @@ export function Detector({ locale = "zh" }: Props) {
         setBrowserResult(local);
       }
 
-      if (index === 2) {
-        remote = null;
-        setServerResult(null);
-        setBrowserIpIntel(null);
+      const progressAnimation = animateProgress(from, to, setProgress, setActiveSignal);
+      if (index === 2 && useNetwork && ipIntelConfig) {
+        const [lookup] = await Promise.all([
+          lookupNetworkIntel({ endpoint: ipIntelConfig.endpoint, timeoutMs: ipIntelConfig.timeoutMs }),
+          progressAnimation,
+        ]);
+        if (lookup.status === "ok") {
+          setNetworkIntel(lookup.intel);
+          setNetworkState("ok");
+        } else {
+          setNetworkState("failed");
+        }
+      } else {
+        await progressAnimation;
       }
-
-      await animateProgress(from, to, setProgress, setActiveSignal);
       await sleep(45);
     }
 
     if (!local) {
       const result = await runDetection({ region: checkRegion, locale, text: detectorText, config: detectionConfig });
       setBrowserResult(result.browserResult);
-    }
-    if (!remote) {
-      setServerResult(null);
-      if (!browserIpIntel) setBrowserIpIntel(null);
     }
 
     await animateProgress(92, 100, setProgress, setActiveSignal);
@@ -238,46 +253,16 @@ export function Detector({ locale = "zh" }: Props) {
   const ringActive = loading || progress > 0;
   const riskLabel = !ringActive ? detectorText.risk.waiting : !hasChecked ? detectorText.risk.checking : animatedScore === 0 ? (fullCoverage ? detectorText.risk.supported : detectorText.risk.unknown) : animatedScore >= 70 ? detectorText.risk.blocked : animatedScore >= 31 ? detectorText.risk.high : detectorText.risk.light;
   const riskLabelClass = !ringActive ? "bg-stone-100 text-stone-500" : !hasChecked ? "bg-blue-50 text-blue-600" : animatedScore === 0 ? "bg-emerald-50 text-emerald-700" : animatedScore >= 70 ? "bg-red-50 text-red-600" : animatedScore >= 31 ? "bg-orange-50 text-orange-700" : "bg-amber-50 text-amber-700";
-  const ipIntel = serverResult?.ipIntelligence;
-  const primaryIpSource = ipIntel?.sources
-    .filter((source) => source.status === "ok" && (source.ip || source.country || source.asn || source.isp || source.org))
-    .sort((a, b) => [b.ip, b.country, b.region, b.city, b.asn, b.isp, b.org, b.latitude, b.longitude].filter(Boolean).length - [a.ip, a.country, a.region, a.city, a.asn, a.isp, a.org, a.latitude, a.longitude].filter(Boolean).length)[0];
-  const browserIpSource = browserIpIntel ? {
-    ip: browserIpIntel.ip,
-    country: browserIpIntel.country,
-    region: browserIpIntel.location,
-    city: browserIpIntel.location,
-    asn: browserIpIntel.asn,
-    isp: browserIpIntel.org,
-    org: browserIpIntel.org,
-    latitude: null,
-    longitude: null,
-    networkType: browserIpIntel.ip.includes(":") ? "IPv6" : "IPv4",
-    risk: null,
-  } : null;
-  const displayIpSource = primaryIpSource ?? browserIpSource;
-  const ipSourceAddresses = [
-    ...(ipIntel?.sources.map((source) => source.ip) ?? []),
-    browserIpIntel?.ip,
-  ].filter((ip): ip is string => typeof ip === "string" && isPublicIp(ip));
-  const ipv4Address = ipSourceAddresses.find((ip) => !ip.includes(":")) ?? null;
-  const ipv6Address = ipSourceAddresses.find((ip) => ip.includes(":")) ?? null;
-  const primaryPublicIp = displayIpSource?.ip && isPublicIp(displayIpSource.ip) ? displayIpSource.ip : null;
-  const detectedPublicIp = ipIntel?.detectedIp && isPublicIp(ipIntel.detectedIp) ? ipIntel.detectedIp : null;
-  const ipAddress = ipv4Address || primaryPublicIp || detectedPublicIp || null;
-  const ipMetricCards = displayIpSource ? [
-    !ipv4Address && !ipv6Address && ipAddress && { label: detectorText.ipMetricLabels.ipAddress, value: ipAddress },
-    ipv6Address && { label: detectorText.ipMetricLabels.ipv6, value: ipv6Address },
-    ipv4Address && { label: detectorText.ipMetricLabels.ipv4, value: ipv4Address },
-    displayIpSource.asn && { label: detectorText.ipMetricLabels.asn, value: displayIpSource.asn },
-    (displayIpSource.org || displayIpSource.isp) && { label: detectorText.ipMetricLabels.asnOwner, value: displayIpSource.org || displayIpSource.isp },
-    displayIpSource.isp && { label: detectorText.ipMetricLabels.company, value: displayIpSource.isp },
-    displayIpSource.longitude != null && { label: detectorText.ipMetricLabels.longitude, value: String(displayIpSource.longitude) },
-    displayIpSource.latitude != null && { label: detectorText.ipMetricLabels.latitude, value: String(displayIpSource.latitude) },
-    displayIpSource.networkType && { label: detectorText.ipMetricLabels.ipType, value: displayIpSource.networkType },
-    displayIpSource.risk && { label: detectorText.ipMetricLabels.risk, value: displayIpSource.risk },
-    displayIpSource.isp && { label: detectorText.ipMetricLabels.isp, value: displayIpSource.isp },
-  ].filter(Boolean) as Array<{ label: string; value: string }> : [];
+  const networkNoteTemplate = !networkUsed
+    ? detectorText.network.disabled
+    : !hasChecked
+      ? networkState === "checking" ? detectorText.network.checking : detectorText.network.idle
+      : networkState === "ok"
+        ? detectorText.network.success
+        : networkState === "failed"
+          ? detectorText.network.failed
+          : detectorText.network.idle;
+  const networkNote = networkNoteTemplate.replaceAll("{provider}", networkProvider);
 
   useEffect(() => {
     const openPicker = () => setShowRegionPicker(true);
@@ -342,10 +327,10 @@ export function Detector({ locale = "zh" }: Props) {
           <div>
             <div className="flex items-center justify-between gap-4">
               <h3 className="text-xl font-black text-[#0b1220]">{copy.title}</h3>
-              <span className="rounded-full bg-[#fffaf3] px-3 py-1 text-xs font-bold text-stone-500">{hasChecked ? copy.signalHitSummary(scoreSummary.hitCount, scoreSummary.totalCount) : copy.signalCount(signals.length + ipMetricCards.length, false)}</span>
+              <span className="rounded-full bg-[#fffaf3] px-3 py-1 text-xs font-bold text-stone-500">{hasChecked ? copy.signalHitSummary(scoreSummary.hitCount, scoreSummary.totalCount) : copy.signalCount(signals.length, false)}</span>
             </div>
-            <div className="mt-2 md:mt-4"><SignalList signals={signals} extraCards={ipMetricCards} /></div>
-            {!detectionConfig.services.ipIntel?.enabled && <p className="mt-3 rounded-xl bg-stone-50 px-3 py-2 text-xs font-semibold leading-5 text-stone-500 ring-1 ring-stone-200">{detectorText.browserOnlyNote}</p>}
+            <div className="mt-2 md:mt-4"><SignalList signals={signals} /></div>
+            <p role="status" className="mt-3 rounded-xl bg-stone-50 px-3 py-2 text-xs font-semibold leading-5 text-stone-500 ring-1 ring-stone-200">{networkNote}</p>
           </div>
         </div>
       </div>
@@ -390,6 +375,15 @@ export function Detector({ locale = "zh" }: Props) {
                 </button>
               ))}
             </div>
+            {ipIntelAvailable && (
+              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl bg-stone-50 px-4 py-3 ring-1 ring-stone-200">
+                <input type="checkbox" checked={networkEnabled} onChange={(event) => setNetworkEnabled(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[#d97757]" />
+                <span className="min-w-0 text-left">
+                  <span className="block text-sm font-black text-[#0b1220]">{detectorText.network.toggleLabel}</span>
+                  <span className="mt-0.5 block text-xs font-semibold leading-5 text-stone-500">{detectorText.network.toggleHint.replaceAll("{provider}", networkProvider)}</span>
+                </span>
+              </label>
+            )}
             <button type="button" onClick={() => { setShowRegionPicker(false); void runCheck(); }} className="mt-5 h-12 w-full cursor-pointer rounded-full bg-[#d97757] font-black text-white shadow-lg shadow-orange-900/15">
               {copy.startCheck}
             </button>

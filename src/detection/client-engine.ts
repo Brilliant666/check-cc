@@ -5,7 +5,6 @@ import type { DetectorLocaleText, TargetRegion } from "./locale";
 import type { RegionCode, SignalResult } from "./types";
 
 export type SignalView = SignalResult & { state?: "pending" | "running" | "done" | "unknown" | "unavailable" };
-export type BrowserIpIntel = { ip: string; location: string; country: string; asn: string; org: string };
 export type BrowserEnvironmentSnapshot = {
   languages: string[];
   timezone: string | null;
@@ -180,7 +179,7 @@ export function summarizeSignals(signals: SignalResult[]): SignalScoreSummary {
   const evaluatedWeight = evaluated.reduce((sum, signal) => sum + signal.weight, 0);
   const raw = evaluated.reduce((sum, signal) => sum + Math.max(0, signal.contribution), 0);
   return {
-    score: evaluatedWeight > 0 ? Math.min(100, Math.round((raw * totalWeight) / evaluatedWeight)) : 0,
+    score: Math.min(100, Math.round(raw)),
     coverage: totalWeight > 0 ? Math.round((evaluatedWeight / totalWeight) * 100) : 0,
     evaluatedCount: evaluated.length,
     totalCount: weighted.length,

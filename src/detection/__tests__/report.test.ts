@@ -53,7 +53,7 @@ const input: DetectionReportInput = {
   statusLabel: "需要进一步确认",
   riskLabel: "轻度风险",
   regionLabel: "自动检测",
-  recommendations: ["建议一", "建议二"],
+  recommendations: ["建议一", "建议二", detectorLocaleText.zh.recommendations.limitation],
   generatedAt: new Date("2026-10-25T00:00:00.000Z"),
 };
 
@@ -80,10 +80,12 @@ describe("buildTextReport", () => {
 
   it("includes recommendations and the limitation note", () => {
     const report = buildTextReport(input);
+    const limitation = detectorLocaleText.zh.recommendations.limitation;
 
     expect(report).toContain("1. 建议一");
     expect(report).toContain("2. 建议二");
-    expect(report).toContain(detectorLocaleText.zh.recommendations.limitation);
+    expect(report).toContain(limitation);
+    expect(report.split(limitation)).toHaveLength(2);
   });
 
   it("renders every locale without empty or invalid fields", () => {
@@ -109,8 +111,15 @@ describe("buildJsonReport", () => {
     expect(parsed.hitCount).toBe(1);
     expect(parsed.signals).toHaveLength(3);
     expect(parsed.signals[1].evaluated).toBe(false);
-    expect(parsed.recommendations).toEqual(["建议一", "建议二"]);
+    expect(parsed.recommendations).toEqual(input.recommendations);
     expect(parsed.limitation).toBe(detectorLocaleText.zh.recommendations.limitation);
+  });
+
+  it("uses an explicit network limitation when provided", () => {
+    const limitation = detectorLocaleText.zh.recommendations.limitationNetwork;
+    const parsed = JSON.parse(buildJsonReport({ ...input, limitation }));
+
+    expect(parsed.limitation).toBe(limitation);
   });
 });
 

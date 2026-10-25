@@ -5,23 +5,26 @@
 
 > This repository is a community fork of [yacuo/check-cc](https://github.com/yacuo/check-cc), maintained by [Brilliant666](https://github.com/Brilliant666).
 >
-> This fork currently performs browser-side environment checks only. It does not request your IP address, network egress, account data, or cookies. Results highlight obvious environment-profile conflicts; they are not an official Claude or Anthropic judgment.
+> This fork focuses on browser-side environment checks and can optionally add a network-layer signal through a third-party IP geolocation service queried directly by the browser (ipwho.is by default). When the network layer is on, that provider will see your public IP; the request does not pass through this site's server, and this site does not receive or store the result. Results highlight obvious environment-profile conflicts; they are not an official Claude or Anthropic judgment.
 
-[CheckCC.org](https://checkcc.org) is the upstream online demo. This fork prioritizes trustworthy reporting: unevaluated signals are no longer scored as zero risk, the report shows evaluable coverage, and the UI states clearly when network-layer checks are disabled.
+[CheckCC.org](https://checkcc.org) is the upstream online demo. This fork prioritizes trustworthy reporting: unevaluated signals are no longer scored as zero risk, the report shows evaluable coverage, the network layer can be turned off, and a failed lookup neither counts as zero risk nor inflates the score.
 
 ## Capability boundaries
 
 | Capability | Status |
 | --- | --- |
 | Browser-side environment sampling | Implemented |
-| 10 weighted risk signals | Implemented |
-| 3 context signals (not scored) | Implemented |
+| 10 weighted browser signals | Implemented |
+| 1 optional weighted network signal (IP country) | Implemented |
+| IP / ASN / organization / location display | Implemented (browser-to-provider) |
+| 3 browser context signals + 4 network context signals (not scored) | Implemented |
+| Network-layer toggle and privacy disclosure | Implemented |
 | Coverage and "not evaluated" states | Implemented |
 | Risk-based next-step recommendations | Implemented |
 | Copy text report / JSON export | Implemented |
 | Chinese, Traditional Chinese, Russian, English | Implemented |
 | Static export and self-hosting | Implemented |
-| IP / ASN / network egress intelligence | Not enabled |
+| VPN / proxy detection | Not implemented (only the exit IP location is known) |
 | Account, cookie, or chat access | Not implemented |
 | Desktop one-click repair | Out of scope for this repository |
 
@@ -31,6 +34,7 @@
 | --- | ---: |
 | System timezone | 26 |
 | Browser language | 20 |
+| IP country (network layer, can be disabled) | 20 |
 | Regional font traits | 16 |
 | Language/script traits | 12 |
 | Vendor font anomalies | 10 |
@@ -40,18 +44,20 @@
 | Timezone offset | 4 |
 | Emoji rendering style | 4 |
 
-Browser/application environment, device/system clues, and operating system are shown as context only and do not affect the score.
+Browser/application environment, device/system clues, and operating system are browser context signals. IP address, IP location, ASN, and network organization are network context signals. None of these seven rows affect the score.
 
 ### Scoring
 
 - Only weighted signals with an actual value participate in scoring.
-- The score is normalized over evaluated weight, and the report shows coverage.
-- Unevaluated signals are shown as "not evaluated" or "unknown", never as zero risk.
-- The score is a heuristic risk hint. It does not predict Claude account status or represent Anthropic's actual risk decisions.
+- The score is the sum of evaluated contributions, capped at 100. Unevaluated signals neither raise nor lower it, and coverage is shown separately.
+- When the network lookup fails, the country signal is shown as "lookup failed / not evaluated" and coverage drops, but the score is not scaled up to fill the missing 20-point weight.
+- The country signal scores only when the IP country matches the target profile. With "Auto detect", an IP in mainland China, Russia, or Iran scores.
+- Unevaluated signals are shown as "not evaluated" or "unknown", never treated as zero risk to claim the environment is safe.
+- The score is a heuristic risk hint. It does not predict Claude account status or represent Anthropic's actual risk decisions. IP geolocation cannot identify VPNs or proxies; it only locates the exit IP.
 
 ### Report export
 
-After a check, you can copy a text report or download JSON. The report includes the risk score, coverage, raw signal values, weights and contributions, recommendations, and limitations, making it easy to save, compare, or attach to a bug report.
+After a check, you can copy a text report or download JSON. The report includes the risk score, coverage, raw signal values, weights and contributions, recommendations, and limitations, making it easy to save, compare, or attach to a bug report. With the network layer on, the report also contains the detected IP, country, ASN, and network organization. Reports are generated locally; remember that they contain your public IP before sharing them.
 
 ## Screenshots
 
@@ -83,8 +89,9 @@ Core dimensions:
 - **Script and fonts**: simplified/traditional Chinese script traits and regional/vendor font matches.
 - **Runtime environment**: browsers, in-app WebViews, domestic browsers, and mobile device traits.
 - **Emoji rendering style**: a secondary signal for system and browser consistency.
+- **Network egress (optional)**: the browser queries a third-party IP geolocation service directly for the public IP, country, ASN, organization, and approximate location. Only the country affects the score; the rest is shown for context.
 
-These signals cannot prove that an account is safe or will be restricted, but they can reveal obvious environment-profile conflicts early.
+These signals cannot prove that an account is safe or will be restricted, but they can reveal obvious environment-profile conflicts early. The network layer only locates the exit IP. It cannot tell whether a VPN, proxy, or relay is in use, and it cannot verify the account's registration or payment region.
 
 ## Reducing ban risk
 
@@ -102,15 +109,17 @@ General suggestions:
 
 ## Privacy
 
-By default, the project performs local browser environment checks only:
+Checking does not require a Claude login and does not read your Claude account, password, cookies, or chat content.
 
-- No Claude login required
-- No Claude account access
-- No password access
-- No cookie access
-- No chat content access
-- No IP, ASN, or network egress requests
-- No default upload of detection results
+The network layer is on by default and can be turned off before a check:
+
+- When on, your browser sends an HTTPS request directly to the configured third-party IP geolocation service (`ipwho.is` by default). That service will see your public IP, which is required for the lookup.
+- The request does not pass through this site's server. This site does not receive, forward, or store the result. The request uses `credentials: "omit"` and `no-referrer`, so no cookies or referring page are sent.
+- When off, no IP lookup request is sent and the check uses browser signals only.
+- Results are not uploaded automatically. Copied or downloaded reports are generated locally in the browser.
+- With the network layer on, exported reports contain your public IP, country, ASN, and network organization. Consider that before sharing a report.
+
+Self-hosters can set `NEXT_PUBLIC_IP_INTEL_ENABLED=false` to remove the network layer at build time, or point `NEXT_PUBLIC_IP_INTEL_ENDPOINT` at their own CORS-enabled lookup endpoint.
 
 ## Tech stack
 
@@ -129,7 +138,7 @@ pnpm install
 pnpm dev
 ```
 
-Open: <http://localhost:3000>
+Open: <http://localhost:5000>
 
 ## Build and preview
 
@@ -154,6 +163,35 @@ pnpm build
 
 The upstream pages still point canonical, OG, and live-demo links to checkcc.org. Replace those values with your own domain before deploying so traffic and search results do not flow to the wrong site.
 
+### Network layer configuration
+
+The network layer reads these environment variables at build time; rebuild after changing them:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | Set to `false` to remove the network layer entirely: no toggle, no IP lookup |
+| `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | Must be an HTTPS, CORS-enabled endpoint that the browser can call directly |
+
+The endpoint may return the native ipwho.is shape or this flat shape:
+
+```json
+{
+  "ip": "203.0.113.10",
+  "country_code": "US",
+  "country": "United States",
+  "region": "California",
+  "city": "Los Angeles",
+  "asn": "AS15169",
+  "org": "Example Network",
+  "isp": "Example ISP",
+  "latitude": 34.05,
+  "longitude": -118.24,
+  "type": "IPv4"
+}
+```
+
+The lookup times out after 3500 ms (see `src/detection/config/services.ts`). Timeouts, CORS failures, malformed responses, and private/reserved addresses cause IP signals to be skipped with a failure notice; failures are not treated as zero risk and do not inflate the score.
+
 ## Development and checks
 
 ```bash
@@ -165,7 +203,7 @@ pnpm check
 
 `pnpm check` runs lint, type checking, and unit tests. GitHub Actions runs the same checks on push and pull requests, plus a static build.
 
-Tests cover score normalization, coverage, unknown signals, zero-weight signals, IP classification, report export, and locale copy completeness.
+Tests cover score non-inflation under partial coverage, unknown signals, zero-weight signals, IP classification, IP lookup parsing/timeouts/failures, country-profile matching, report export, and locale copy completeness.
 
 ## Feedback
 
@@ -173,7 +211,7 @@ Please use GitHub Issues: <https://github.com/Brilliant666/check-cc/issues>
 
 ## Disclaimer
 
-CheckCC provides risk hints based on local browser environment signals only. It does not represent official Claude or Anthropic judgments. Do not use the result as the only basis for account safety, subscription status, or appeal decisions.
+CheckCC provides risk hints based on local browser environment signals and optional third-party IP geolocation. It does not represent official Claude or Anthropic judgments. IP geolocation may be inaccurate and cannot identify VPNs, proxies, or relays. Do not use the result as the only basis for account safety, subscription status, or appeal decisions.
 
 ## License and source
 

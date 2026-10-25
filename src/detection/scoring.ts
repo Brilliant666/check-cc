@@ -47,6 +47,14 @@ function scoreProfile(profile: RegionProfile, input: Input) {
   return { profile, score: Math.min(100, total), signals };
 }
 
+export function countryRisk(countryCode: string | null | undefined, region: RegionCode): { score: number; matchedRegion: Exclude<RegionCode, "auto"> | null } {
+  const code = countryCode?.trim().toUpperCase();
+  if (!code) return { score: 0, matchedRegion: null };
+  const candidates = region === "auto" ? REGION_PROFILES : REGION_PROFILES.filter((profile) => profile.code === region);
+  const profile = candidates.find((item) => item.countries.includes(code)) ?? null;
+  return { score: profile ? 1 : 0, matchedRegion: profile?.code ?? null };
+}
+
 export function accessStatus(score: number): AccessStatus {
   if (score >= 70) return "restricted";
   if (score >= 40) return "possibly_supported";
