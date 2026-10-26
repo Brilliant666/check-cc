@@ -38,6 +38,7 @@ This repository is a community fork of [yacuo/check-cc](https://github.com/yacuo
 - 🌏 **Four UI languages**: Simplified Chinese, Traditional Chinese, Russian, and English, each with its own URL and `html lang`.
 - 🛡️ **Privacy-first**: no Claude login, no account content, and no third-party analytics scripts.
 - 📦 **Static export**: Next.js exports to `out/`, deployable to any static host with no Node server runtime.
+- 🐳 **One-command VPS deploy**: Docker Compose + Nginx, listening on 8080 by default; domain and TLS are left to you.
 
 > Maintained by **Brilliant666**, based on MIT-licensed code from yacuo/check-cc.
 
@@ -194,6 +195,10 @@ review-check-cc/
 │  ├─ i18n/                       # Four-language copy and metadata
 │  └─ regions/                    # Mainland China / Hong Kong / Russia / Iran
 ├─ docs/images/                   # README screenshots
+├─ deploy/                        # VPS Docker deploy script and Nginx config
+├─ Dockerfile                     # Multi-stage build: static export + Nginx
+├─ docker-compose.yml             # One-command VPS configuration
+├─ .env.example                   # Deployment environment template
 ├─ shell/deploy-restart-hot.sh    # Local one-command launcher
 ├─ next.config.ts                 # Static export config
 └─ package.json
@@ -230,6 +235,28 @@ pnpm preview    # Preview out/ at http://localhost:4173
 There is no Node server runtime, so do not use `next start`.
 
 ## 📦 Self-hosting
+
+### Option 1: One-command VPS deploy (Docker + Nginx, recommended)
+
+For Ubuntu / Debian with Docker Engine 20.10+ (24+ recommended) and Docker Compose v2:
+
+```bash
+git clone https://github.com/Brilliant666/check-cc.git
+cd check-cc
+cp .env.example .env
+# edit .env and set at least NEXT_PUBLIC_SITE_URL
+./deploy/deploy.sh
+```
+
+The script builds the static site, starts an Nginx container, and waits for the health check. It listens on `0.0.0.0:8080` by default. Domain, TLS, and the outer reverse proxy are left to you; if Nginx or Caddy already runs on the host, bind to localhost instead:
+
+```bash
+CHECKCC_BIND=127.0.0.1 ./deploy/deploy.sh
+```
+
+See [deploy/README.md](./deploy/README.md) for the full VPS guide, reverse-proxy examples, and update commands.
+
+### Option 2: Manual static hosting
 
 Deploy the `out/` directory to any static host, such as Cloudflare Pages, Netlify, Vercel, or your own Nginx:
 
@@ -337,6 +364,7 @@ Yes. Set `NEXT_PUBLIC_IP_INTEL_ENABLED=false` at build time to remove the toggle
 - Network layer is off by default; the first check sends no IP lookup.
 - Added "Turn on network and recheck" for an opt-in IP-country signal.
 - Added a separate Hong Kong profile; Traditional Chinese / Hong Kong timezone no longer map to mainland China.
+- Added a Docker + Nginx one-command VPS deployment.
 - Updated copy in all four languages, READMEs, and privacy notes.
 - 62 unit tests, type checking, lint, and static build pass.
 

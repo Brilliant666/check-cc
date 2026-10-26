@@ -38,6 +38,7 @@
 - 🌏 **四语言界面**：简体中文、繁体中文、俄文、英文，各自有独立 URL 和 `html lang`。
 - 🛡️ **隐私优先**：不登录 Claude，不读取账号敏感内容，不接入第三方访问统计脚本。
 - 📦 **静态导出**：Next.js 静态导出到 `out/`，可部署到任意静态托管，无 Node 服务端运行时。
+- 🐳 **VPS 一键部署**：Docker Compose + Nginx，默认监听 8080，域名和 HTTPS 由你自行接管。
 
 > Maintained by **Brilliant666**，基于 yacuo/check-cc 的 MIT 许可代码。
 
@@ -196,6 +197,10 @@ review-check-cc/
 │  ├─ i18n/                       # 四语言文案与元信息
 │  └─ regions/                    # 中国大陆 / 香港 / 俄罗斯 / 伊朗画像
 ├─ docs/images/                   # README 截图
+├─ deploy/                        # VPS Docker 部署脚本与 Nginx 配置
+├─ Dockerfile                     # 多阶段构建：静态导出 + Nginx
+├─ docker-compose.yml             # VPS 一键启动配置
+├─ .env.example                   # 部署环境变量模板
 ├─ shell/deploy-restart-hot.sh    # 本地一键启动脚本
 ├─ next.config.ts                 # 静态导出配置
 └─ package.json
@@ -232,6 +237,28 @@ pnpm preview    # 在 http://localhost:4173 预览 out/
 本项目没有 Node 服务端运行时，因此不要使用 `next start`。
 
 ## 📦 自部署
+
+### 方式一：VPS 一键部署（Docker + Nginx，推荐）
+
+适用于 Ubuntu / Debian，需要 Docker Engine 20.10+（建议 24+）和 Docker Compose v2：
+
+```bash
+git clone https://github.com/Brilliant666/check-cc.git
+cd check-cc
+cp .env.example .env
+# 编辑 .env，至少设置 NEXT_PUBLIC_SITE_URL
+./deploy/deploy.sh
+```
+
+脚本会构建静态站点、启动 Nginx 容器并等待健康检查通过，默认监听 `0.0.0.0:8080`。域名、HTTPS 和反向代理由你自行配置；如果前面已有 Nginx / Caddy，建议改为只监听本机：
+
+```bash
+CHECKCC_BIND=127.0.0.1 ./deploy/deploy.sh
+```
+
+完整的 VPS 部署说明、反向代理示例和更新命令见 [deploy/README.md](./deploy/README.md)。
+
+### 方式二：手动静态托管
 
 将 `out/` 目录部署到任意静态托管即可，例如 Cloudflare Pages、Netlify、Vercel 或自己的 Nginx：
 
@@ -339,6 +366,7 @@ GitHub Actions 会在 push 和 pull request 时执行 lint、类型检查、单�
 - 网络层改为默认关闭，首次检测不发送 IP 查询
 - 新增“开启网络层并重测”，按需补充 IP 国家信号
 - 新增香港独立画像，繁体中文 / 香港时区不再归入中国大陆
+- 新增 Docker + Nginx VPS 一键部署脚本
 - 四语言文案、README 和隐私说明同步更新
 - 62 项单元测试、类型检查、Lint 和静态构建通过
 

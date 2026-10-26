@@ -1,0 +1,20 @@
+# CheckCC Docker build context.
+# Keep the image small and avoid baking local state or secrets.
+
+.git
+.github
+.next
+out
+node_modules
+docs
+shell
+
+# local artifacts
+checkcc-local.png
+checkcc-result.png
+*.log
+*.tsbuildinfo
+
+# local environment files
+.env
+.env.*
