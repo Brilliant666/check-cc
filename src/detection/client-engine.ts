@@ -2,7 +2,7 @@
 import { getRegionProfile, REGION_PROFILES } from "../regions";
 import { evaluateAccess } from "./scoring";
 import { detectionConfig, getSignalConfig, getSignalWeight, type DetectionConfig } from "./config";
-import type { DetectorLocaleText, TargetRegion } from "./locale";
+import type { DetectorLocaleText } from "./locale";
 import type { RegionCode, SignalResult } from "./types";
 
 export type SignalView = SignalResult & { state?: "pending" | "running" | "done" | "unknown" | "unavailable" };
@@ -15,11 +15,7 @@ export type BrowserEnvironmentSnapshot = {
   brands: string;
 };
 
-export const regions: Array<{ code: TargetRegion }> = [{ code: "auto" }, { code: "cn" }, { code: "hk" }, { code: "ru" }];
-
-export function normalizeRegion(code: TargetRegion): RegionCode {
-  return code === "hk" ? "auto" : code;
-}
+export const regions: Array<{ code: RegionCode }> = [{ code: "auto" }, { code: "cn" }, { code: "ru" }];
 
 export function timezoneRisk(timezone: string | null, region: RegionCode) {
   if (!timezone) return 0;

@@ -3,11 +3,10 @@
 // CheckCC 的浏览器端检测组件，用于执行环境扫描、展示风险信号、进度状态和检测结果。
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import type { SignalResult } from "@/detection/types";
+import type { RegionCode, SignalResult } from "@/detection/types";
 import {
   animateProgress,
   defaultSignals,
-  normalizeRegion,
   regions,
   scanSteps,
   sleep,
@@ -79,7 +78,7 @@ export function Detector({ locale = "zh" }: Props) {
   const ipIntelConfig = detectionConfig.services.ipIntel;
   const ipIntelAvailable = Boolean(ipIntelConfig?.enabled);
   const networkProvider = ipIntelConfig ? providerHost(ipIntelConfig.endpoint) : "";
-  const [region, setRegion] = useState<TargetRegion>("auto");
+  const [region, setRegion] = useState<RegionCode>("auto");
   const [browserResult, setBrowserResult] = useState<DetectionRunResult["browserResult"] | null>(null);
   const [networkIntel, setNetworkIntel] = useState<NetworkIntel | null>(null);
   const [networkEnabled, setNetworkEnabled] = useState(ipIntelAvailable);
@@ -99,7 +98,7 @@ export function Detector({ locale = "zh" }: Props) {
       const code = networkIntel.countryCode?.toUpperCase() ?? null;
       if (code) {
         const weight = detectionConfig.signals.country.weight;
-        const match = countryRisk(code, normalizeRegion(region));
+        const match = countryRisk(code, region);
         map.set("country", {
           id: "country",
           label: detectorText.signalLabels.country,
@@ -148,7 +147,7 @@ export function Detector({ locale = "zh" }: Props) {
   const animatedScore = loading ? Math.round((rawScore * progress) / 100) : rawScore;
   const status = rawScore >= 70 ? "restricted" : rawScore >= 31 ? "possibly_supported" : rawScore > 0 ? "unknown" : fullCoverage ? "supported" : "unknown";
   const pageRegionCode = region !== "auto" ? region : locale === "zh-HK" ? "hk" : locale === "ru" ? "ru" : "cn";
-  const networkMatchedRegion = networkUsed && networkIntel ? countryRisk(networkIntel.countryCode, normalizeRegion(region)).matchedRegion : null;
+  const networkMatchedRegion = networkUsed && networkIntel ? countryRisk(networkIntel.countryCode, region).matchedRegion : null;
   const detectedRegionCode = (browserResult?.matchedRegion ?? networkMatchedRegion ?? pageRegionCode) as TargetRegion;
   const pageRegion = detectorText.regions[detectedRegionCode];
   const russianSummaryRegions: Record<TargetRegion, string> = { auto: "российской", cn: "китайской", hk: "гонконгской", ru: "российской", ir: "иранской" };
@@ -209,14 +208,13 @@ export function Detector({ locale = "zh" }: Props) {
     setNetworkState(useNetwork ? "checking" : "disabled");
 
     let local: DetectionRunResult["browserResult"] | null = null;
-    const checkRegion = normalizeRegion(region);
 
     for (let index = 0; index < scanSteps.length; index += 1) {
       const from = Math.round((index / scanSteps.length) * 92);
       const to = Math.round(((index + 1) / scanSteps.length) * 92);
 
       if (index === 0 || index === 1 || index === 4) {
-        const result = await runDetection({ region: checkRegion, locale, text: detectorText, config: detectionConfig });
+        const result = await runDetection({ region, locale, text: detectorText, config: detectionConfig });
         local = result.browserResult;
         setBrowserResult(local);
       }
@@ -240,7 +238,7 @@ export function Detector({ locale = "zh" }: Props) {
     }
 
     if (!local) {
-      const result = await runDetection({ region: checkRegion, locale, text: detectorText, config: detectionConfig });
+      const result = await runDetection({ region, locale, text: detectorText, config: detectionConfig });
       setBrowserResult(result.browserResult);
     }
 

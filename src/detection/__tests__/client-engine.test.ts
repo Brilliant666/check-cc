@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { messages } from "../../i18n/messages";
-import { collectBrowserSignals, isPublicIp, languageRisk, localeRisk, makeSignalScore, normalizeRegion, summarizeSignals, timezoneRisk } from "../client-engine";
+import { collectBrowserSignals, isPublicIp, languageRisk, localeRisk, makeSignalScore, regions, summarizeSignals, timezoneRisk } from "../client-engine";
 import { detectionConfig } from "../config";
 import { detectorLocaleText } from "../locale";
 import type { SignalResult } from "../types";
@@ -184,10 +184,9 @@ describe("locale content", () => {
   });
 });
 
-describe("normalizeRegion", () => {
-  it("collapses hong kong to automatic detection", () => {
-    expect(normalizeRegion("hk")).toBe("auto");
-    expect(normalizeRegion("cn")).toBe("cn");
+describe("target region options", () => {
+  it("does not offer Hong Kong without a dedicated scoring profile", () => {
+    expect(regions.map((item) => item.code)).toEqual(["auto", "cn", "ru"]);
   });
 });
 
