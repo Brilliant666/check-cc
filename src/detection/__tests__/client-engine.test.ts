@@ -167,6 +167,10 @@ describe("locale content", () => {
       expect(text.network.success).not.toBe("");
       expect(text.network.failed).not.toBe("");
       expect(text.network.disabled).not.toBe("");
+      expect(text.settings.label).not.toBe("");
+      expect(text.settings.networkOn).not.toBe("");
+      expect(text.settings.networkOff).not.toBe("");
+      expect(text.settings.changeHint).not.toBe("");
       expect(text.recommendationsTitle).not.toBe("");
       expect(text.recommendations.high).not.toBe("");
       expect(text.recommendations.medium).not.toBe("");

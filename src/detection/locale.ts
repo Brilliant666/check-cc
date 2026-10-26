@@ -27,6 +27,7 @@ export type DetectorLocaleText = {
     disabled: string;
     unavailable: string;
   };
+  settings: { label: string; networkOn: string; networkOff: string; changeHint: string };
   recommendationsTitle: string;
   recommendations: { high: string; medium: string; low: string; incomplete: string; limitation: string; limitationNetwork: string; limitationNetworkFailed: string };
   report: {
@@ -81,6 +82,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
       disabled: "网络层：已关闭。本次仅基于浏览器信号评分，未向第三方发送 IP 查询请求。",
       unavailable: "查询失败",
     },
+    settings: { label: "检测设置", networkOn: "网络层开启", networkOff: "网络层关闭", changeHint: "修改检测目标会清空当前结果，请重新点击检测。" },
     recommendationsTitle: "下一步建议",
     recommendations: {
       high: "命中多项高风险信号。若当前环境与账号常用地区不一致，建议先停止在该环境登录或订阅，核对一致后再使用。",
@@ -133,6 +135,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
       disabled: "網絡層：已關閉。本次僅基於瀏覽器訊號評分，未向第三方傳送 IP 查詢請求。",
       unavailable: "查詢失敗",
     },
+    settings: { label: "檢測設定", networkOn: "網絡層已開啟", networkOff: "網絡層已關閉", changeHint: "修改檢測目標會清空目前結果，請重新點擊檢測。" },
     recommendationsTitle: "下一步建議",
     recommendations: {
       high: "命中多項高風險訊號。若目前環境與帳號常用地區不一致，建議先停止在該環境登入或訂閱，核對一致後再使用。",
@@ -185,6 +188,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
       disabled: "Сетевой слой: отключён. Проверка использует только сигналы браузера и не отправляет запросы третьей стороне.",
       unavailable: "Не получено",
     },
+    settings: { label: "Настройки", networkOn: "Сетевой слой вкл.", networkOff: "Сетевой слой выкл.", changeHint: "Смена цели проверки очистит текущий результат; запустите проверку снова." },
     recommendationsTitle: "Рекомендации",
     recommendations: {
       high: "Обнаружено несколько сигналов высокого риска. Если среда отличается от обычного региона аккаунта, не входите и не оформляйте подписку до устранения расхождений.",
@@ -237,6 +241,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
       disabled: "Network layer: off. This check uses browser signals only and sent no IP lookup request to a third party.",
       unavailable: "Lookup failed",
     },
+    settings: { label: "Check settings", networkOn: "Network on", networkOff: "Network off", changeHint: "Changing the target clears the current result. Run the check again." },
     recommendationsTitle: "Next steps",
     recommendations: {
       high: "Multiple high-risk signals matched. If this environment differs from your account's usual region, avoid signing in or subscribing here until the mismatch is resolved.",

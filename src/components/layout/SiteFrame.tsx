@@ -143,7 +143,7 @@ export function SiteFrame({ children }: { children: ReactNode }) {
                   )}
                 </div>
               </nav>
-              <button type="button" onClick={() => window.dispatchEvent(new Event("open-region-picker"))} disabled={running} className="cursor-pointer rounded-full bg-[#0b1220] px-5 py-2.5 text-sm font-black text-white transition hover:bg-[#d97757] disabled:cursor-not-allowed disabled:opacity-60">{copy.nav.detect}</button>
+              <button type="button" onClick={() => window.dispatchEvent(new Event("start-detection"))} disabled={running} className="cursor-pointer rounded-full bg-[#0b1220] px-5 py-2.5 text-sm font-black text-white transition hover:bg-[#d97757] disabled:cursor-not-allowed disabled:opacity-60">{copy.nav.detect}</button>
             </div>
           </div>
         </header>

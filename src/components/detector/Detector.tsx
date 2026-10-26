@@ -1,8 +1,7 @@
 "use client";
 
 // CheckCC 的浏览器端检测组件，用于执行环境扫描、展示风险信号、进度状态和检测结果。
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RegionCode, SignalResult } from "@/detection/types";
 import {
   animateProgress,
@@ -87,10 +86,8 @@ export function Detector({ locale = "zh" }: Props) {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [activeSignal, setActiveSignal] = useState(-1);
-  const [showRegionPicker, setShowRegionPicker] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const openerRef = useRef<HTMLElement | null>(null);
   const runningRef = useRef(false);
   const runTokenRef = useRef(0);
 
@@ -215,54 +212,6 @@ export function Detector({ locale = "zh" }: Props) {
           : detectorText.network.idle;
   const networkNote = networkNoteTemplate.replaceAll("{provider}", networkProvider);
 
-  useEffect(() => {
-    if (!showRegionPicker) return;
-    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const panel = pickerRef.current;
-    const focusables = () =>
-      panel
-        ? Array.from(
-            panel.querySelectorAll<HTMLElement>(
-              'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-            ),
-          ).filter((element) => element.getClientRects().length > 0)
-        : [];
-    focusables()[0]?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setShowRegionPicker(false);
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const items = focusables();
-      if (!items.length) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      if (openerRef.current?.isConnected) openerRef.current.focus();
-    };
-  }, [showRegionPicker]);
-
-  useEffect(() => {
-    const openPicker = () => {
-      if (runningRef.current) return;
-      setShowRegionPicker(true);
-    };
-    window.addEventListener("open-region-picker", openPicker);
-    return () => window.removeEventListener("open-region-picker", openPicker);
-  }, []);
-
   useEffect(
     () => () => {
       runTokenRef.current += 1;
@@ -272,13 +221,13 @@ export function Detector({ locale = "zh" }: Props) {
     [],
   );
 
-  const runCheck = async () => {
+  const runCheck = useCallback(async () => {
     if (runningRef.current) return;
     runningRef.current = true;
     const token = runTokenRef.current + 1;
     runTokenRef.current = token;
     const activeRegion = region;
-    setShowRegionPicker(false);
+    setSettingsOpen(false);
     setLoading(true);
     setBrowserResult(null);
     setNetworkIntel(null);
@@ -341,7 +290,34 @@ export function Detector({ locale = "zh" }: Props) {
         window.dispatchEvent(new CustomEvent("checkcc-running", { detail: false }));
       }
     }
+  }, [region, networkEnabled, ipIntelAvailable, ipIntelConfig, detectorText]);
+
+  const changeRegion = (code: RegionCode) => {
+    if (code === region) return;
+    setRegion(code);
+    setBrowserResult(null);
+    setNetworkIntel(null);
+    setNetworkState("idle");
+    setNetworkUsed(networkEnabled && ipIntelAvailable);
+    setProgress(0);
+    setActiveSignal(-1);
+    setCopyState("idle");
   };
+
+  const runCheckRef = useRef(runCheck);
+  useEffect(() => {
+    runCheckRef.current = runCheck;
+  }, [runCheck]);
+
+  useEffect(() => {
+    const start = () => {
+      if (runningRef.current) return;
+      document.getElementById("checker")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      void runCheckRef.current();
+    };
+    window.addEventListener("start-detection", start);
+    return () => window.removeEventListener("start-detection", start);
+  }, []);
 
   return (
     <section className="mx-auto p-0">
@@ -359,9 +335,42 @@ export function Detector({ locale = "zh" }: Props) {
       </div>
 
       <div className="mx-auto mt-5 w-full text-center">
-        <button type="button" onClick={() => setShowRegionPicker(true)} disabled={loading} className="h-14 w-full cursor-pointer rounded-full bg-[#d97757] px-8 text-lg font-black text-white shadow-xl shadow-orange-900/20 transition hover:bg-[#c05f3c] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto md:min-w-[360px]">
+        <button type="button" onClick={() => void runCheck()} disabled={loading} className="h-14 w-full cursor-pointer rounded-full bg-[#d97757] px-8 text-lg font-black text-white shadow-xl shadow-orange-900/20 transition hover:bg-[#c05f3c] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto md:min-w-[360px]">
           {loading ? copy.loadingText : copy.idleCta}
         </button>
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <button type="button" onClick={() => setSettingsOpen((value) => !value)} aria-expanded={settingsOpen} aria-controls="detector-settings" className="inline-flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-stone-300 bg-white/70 px-4 py-2 text-xs font-bold text-stone-600 transition hover:border-[#d97757] hover:text-[#c05f3c]">
+            <span>{detectorText.settings.label}</span>
+            <span className="text-stone-400">·</span>
+            <span>{detectorText.regions[region]}</span>
+            <span className="text-stone-400">·</span>
+            <span>{networkEnabled ? detectorText.settings.networkOn : detectorText.settings.networkOff}</span>
+            <svg viewBox="0 0 24 24" className={`size-4 transition-transform ${settingsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+          {settingsOpen && (
+            <div id="detector-settings" className="w-full max-w-xl rounded-3xl border border-stone-200 bg-white p-4 text-left shadow-lg shadow-orange-950/5">
+              <p className="text-sm font-black text-[#0b1220]">{copy.targetTitle}</p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-stone-500">{copy.targetDesc}</p>
+              <div role="group" aria-label={copy.targetTitle} className="mt-3 grid grid-cols-3 gap-2">
+                {regions.map((item) => (
+                  <button key={item.code} type="button" aria-pressed={region === item.code} disabled={loading} onClick={() => changeRegion(item.code)} className={`rounded-xl border px-2 py-2.5 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${region === item.code ? "border-[#d97757] bg-orange-50 text-[#c05f3c]" : "border-stone-200 bg-white text-[#0b1220] hover:border-stone-300"}`}>
+                    {detectorText.regions[item.code]}
+                  </button>
+                ))}
+              </div>
+              {ipIntelAvailable && (
+                <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-2xl bg-stone-50 px-4 py-3 ring-1 ring-stone-200">
+                  <input type="checkbox" checked={networkEnabled} disabled={loading} onChange={(event) => setNetworkEnabled(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[#d97757]" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-black text-[#0b1220]">{detectorText.network.toggleLabel}</span>
+                    <span className="mt-0.5 block text-xs font-semibold leading-5 text-stone-500">{detectorText.network.toggleHint.replaceAll("{provider}", networkProvider)}</span>
+                  </span>
+                </label>
+              )}
+              {hasChecked && <p className="mt-3 text-xs font-semibold leading-5 text-stone-500">{detectorText.settings.changeHint}</p>}
+            </div>
+          )}
+        </div>
         <div className="relative mt-10 text-center font-black" role="status" aria-live="polite" aria-atomic="true">
           <div className="py-3 leading-tight md:py-4">
             {hasChecked ? (
@@ -433,41 +442,6 @@ export function Detector({ locale = "zh" }: Props) {
         </div>
       )}
 
-      {showRegionPicker && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[9999] grid place-items-center bg-black/45 p-4" onClick={() => setShowRegionPicker(false)}>
-          <div ref={pickerRef} role="dialog" aria-modal="true" aria-labelledby="region-picker-title" aria-describedby="region-picker-desc" className="relative z-[10000] w-full max-w-md rounded-[2rem] border border-stone-200 bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h3 id="region-picker-title" className="text-xl font-black text-[#0b1220]">{copy.targetTitle}</h3>
-                <p id="region-picker-desc" className="mt-1 text-sm text-stone-500">{copy.targetDesc}</p>
-              </div>
-              <button type="button" onClick={() => setShowRegionPicker(false)} aria-label={copy.close} className="grid size-11 place-items-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200">
-                <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
-              </button>
-            </div>
-            <div role="group" aria-label={copy.targetTitle} className="mt-5 grid grid-cols-2 gap-3">
-              {regions.map((item) => (
-                <button key={item.code} type="button" aria-pressed={region === item.code} onClick={() => setRegion(item.code)} className={`rounded-2xl border px-4 py-4 text-center font-black transition ${region === item.code ? "border-[#d97757] bg-orange-50 text-[#c05f3c]" : "border-stone-200 bg-white text-[#0b1220] hover:border-stone-300"}`}>
-                  {detectorText.regions[item.code]}
-                </button>
-              ))}
-            </div>
-            {ipIntelAvailable && (
-              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl bg-stone-50 px-4 py-3 ring-1 ring-stone-200">
-                <input type="checkbox" checked={networkEnabled} onChange={(event) => setNetworkEnabled(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[#d97757]" />
-                <span className="min-w-0 text-left">
-                  <span className="block text-sm font-black text-[#0b1220]">{detectorText.network.toggleLabel}</span>
-                  <span className="mt-0.5 block text-xs font-semibold leading-5 text-stone-500">{detectorText.network.toggleHint.replaceAll("{provider}", networkProvider)}</span>
-                </span>
-              </label>
-            )}
-            <button type="button" onClick={() => { setShowRegionPicker(false); void runCheck(); }} disabled={loading} className="mt-5 h-12 w-full cursor-pointer rounded-full bg-[#d97757] font-black text-white shadow-lg shadow-orange-900/15 disabled:cursor-not-allowed disabled:opacity-60">
-              {copy.startCheck}
-            </button>
-          </div>
-        </div>,
-        document.body
-      )}
     </section>
   );
 }
