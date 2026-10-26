@@ -19,9 +19,15 @@ const UNKNOWN_PRODUCTS: ProductAccess = {
   payment: "unknown",
 };
 
-function includesLower(list: string[], value: string) {
+function matchesLanguage(list: string[], value: string) {
   const v = value.toLowerCase();
-  return list.some((item) => v.includes(item.toLowerCase()) || item.toLowerCase().includes(v));
+  return list.some((item) => {
+    const i = item.toLowerCase();
+    if (i === v) return true;
+    // A bare "zh" matches every Chinese variant under substring matching; require a specific tag instead.
+    if (i === "zh" || v === "zh") return false;
+    return v.startsWith(`${i}-`) || i.startsWith(`${v}-`);
+  });
 }
 
 function scoreProfile(profile: RegionProfile, input: Input) {
@@ -29,8 +35,8 @@ function scoreProfile(profile: RegionProfile, input: Input) {
   const langs = input.languages?.map((lang) => lang.toLowerCase()) ?? [];
   const countryScore = input.country && profile.countries.includes(input.country.toUpperCase()) ? 1 : 0;
   const timezoneScore = input.timezone && profile.timezones.includes(input.timezone) ? 1 : 0;
-  const languageScore = langs.some((lang) => includesLower(profile.languages, lang)) ? 1 : 0;
-  const localeScore = input.locale && includesLower(profile.languages, input.locale) ? 1 : 0;
+  const languageScore = langs.some((lang) => matchesLanguage(profile.languages, lang)) ? 1 : 0;
+  const localeScore = input.locale && matchesLanguage(profile.languages, input.locale) ? 1 : 0;
   const browserScore = profile.browserPatterns.some((pattern) => ua.includes(pattern)) ? 1 : 0;
   const deviceScore = profile.devicePatterns.some((pattern) => ua.includes(pattern)) ? 0.7 : 0;
 

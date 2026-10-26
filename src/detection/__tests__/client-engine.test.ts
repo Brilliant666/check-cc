@@ -167,6 +167,7 @@ describe("locale content", () => {
       expect(text.network.success).not.toBe("");
       expect(text.network.failed).not.toBe("");
       expect(text.network.disabled).not.toBe("");
+      expect(text.network.enableAndRetry).not.toBe("");
       expect(text.settings.label).not.toBe("");
       expect(text.settings.networkOn).not.toBe("");
       expect(text.settings.networkOff).not.toBe("");
@@ -189,7 +190,7 @@ describe("locale content", () => {
 });
 
 describe("target region options", () => {
-  it("does not offer Hong Kong without a dedicated scoring profile", () => {
+  it("keeps Hong Kong on auto detection instead of adding a manual target", () => {
     expect(regions.map((item) => item.code)).toEqual(["auto", "cn", "ru"]);
   });
 });
@@ -205,13 +206,17 @@ describe("region risk helpers", () => {
     expect(timezoneRisk("Europe/Moscow", "cn")).toBe(0);
     expect(timezoneRisk("Asia/Tehran", "ir")).toBe(1);
     expect(timezoneRisk("Asia/Hong_Kong", "auto")).toBe(0.6);
+    expect(timezoneRisk("Asia/Hong_Kong", "hk")).toBe(1);
     expect(timezoneRisk("Asia/Hong_Kong", "ru")).toBe(0);
+    expect(timezoneRisk("Asia/Shanghai", "hk")).toBe(0);
     expect(timezoneRisk(null, "auto")).toBe(0);
   });
 
   it("matches language signals against the selected region", () => {
     expect(languageRisk(["zh-CN"], "cn")).toBe(1);
     expect(languageRisk(["zh-TW"], "auto")).toBe(0.5);
+    expect(languageRisk(["zh"], "auto")).toBe(0.5);
+    expect(languageRisk(["zh-HK"], "hk")).toBe(1);
     expect(languageRisk(["ru-RU"], "ru")).toBe(1);
     expect(languageRisk(["ru-RU"], "cn")).toBe(0);
     expect(languageRisk(["fa-IR"], "ir")).toBe(1);
@@ -221,6 +226,8 @@ describe("region risk helpers", () => {
   it("matches Intl locale against the selected region", () => {
     expect(localeRisk("zh-CN", "cn")).toBe(1);
     expect(localeRisk("zh-HK", "auto")).toBe(0.5);
+    expect(localeRisk("zh", "auto")).toBe(0.5);
+    expect(localeRisk("zh-HK", "hk")).toBe(1);
     expect(localeRisk("ru-RU", "ru")).toBe(1);
     expect(localeRisk("ru-RU", "cn")).toBe(0);
     expect(localeRisk("fa-IR", "ir")).toBe(1);
@@ -235,9 +242,16 @@ describe("collectBrowserSignals", () => {
     vi.restoreAllMocks();
   });
 
-  function stubCanvas() {
+  function stubCanvas(availableFonts: string[] = []) {
     vi.stubGlobal("document", {
-      createElement: () => ({ getContext: () => ({ font: "", measureText: () => ({ width: 10 }) }) }),
+      createElement: () => ({
+        getContext: () => ({
+          font: "",
+          measureText(this: { font: string }) {
+            return { width: availableFonts.some((font) => this.font.includes(`"${font}"`)) ? 197 : 10 };
+          },
+        }),
+      }),
     });
   }
 
@@ -308,6 +322,45 @@ describe("collectBrowserSignals", () => {
     expect(byId.timezone.contribution).toBe(26);
     expect(byId.language.contribution).toBe(20);
     expect(byId.languageVariant.contribution).toBe(12);
+    expect(byId.locale.contribution).toBe(6);
+  });
+
+  it("identifies a typical Hong Kong browser profile as Hong Kong", () => {
+    stubCanvas(["Microsoft JhengHei"]);
+    vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(-480);
+    const result = collectBrowserSignals(
+      "auto",
+      detectorLocaleText.en,
+      detectionConfig,
+      { languages: ["zh-HK", "zh", "en"], timezone: "Asia/Hong_Kong", locale: "zh-HK", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36", platform: "Windows", brands: "Google Chrome" },
+    );
+    const byId = Object.fromEntries(result.signals.map((item) => [item.id, item]));
+
+    expect(result.matchedRegion).toBe("hk");
+    expect(byId.timezone.contribution).toBe(16);
+    expect(byId.language.contribution).toBe(10);
+    expect(byId.languageVariant.contribution).toBe(12);
+    expect(byId.chineseFonts.contribution).toBe(8);
+    expect(byId.locale.contribution).toBe(3);
+    expect(byId.timezoneOffset.contribution).toBe(3);
+    expect(byId.emojiStyle.contribution).toBe(2);
+    expect(summarizeSignals(result.signals).score).toBe(54);
+  });
+
+  it("keeps a simplified-Chinese browser on the mainland profile", () => {
+    stubCanvas();
+    vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(-480);
+    const result = collectBrowserSignals(
+      "auto",
+      detectorLocaleText.zh,
+      detectionConfig,
+      { languages: ["zh-CN", "zh"], timezone: "Asia/Hong_Kong", locale: "zh-CN", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36", platform: "Windows", brands: "Google Chrome" },
+    );
+    const byId = Object.fromEntries(result.signals.map((item) => [item.id, item]));
+
+    expect(result.matchedRegion).toBe("cn");
+    expect(byId.timezone.contribution).toBe(16);
+    expect(byId.language.contribution).toBe(20);
     expect(byId.locale.contribution).toBe(6);
   });
 });

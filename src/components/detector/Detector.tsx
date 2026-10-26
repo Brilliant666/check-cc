@@ -12,7 +12,7 @@ import {
   summarizeSignals,
   type SignalView,
 } from "@/detection/client-engine";
-import { countryDisplayName, detectorLocaleText, type DetectorLocaleText, type TargetRegion } from "@/detection/locale";
+import { countryDisplayName, detectorLocaleText, type DetectorLocaleText } from "@/detection/locale";
 import { detectionConfig } from "@/detection/config";
 import { lookupNetworkIntel, providerHost, type NetworkIntel } from "@/detection/ip-intel";
 import { buildJsonReport, buildTextReport, reportFilename } from "@/detection/report";
@@ -80,9 +80,9 @@ export function Detector({ locale = "zh" }: Props) {
   const [region, setRegion] = useState<RegionCode>("auto");
   const [browserResult, setBrowserResult] = useState<DetectionRunResult["browserResult"] | null>(null);
   const [networkIntel, setNetworkIntel] = useState<NetworkIntel | null>(null);
-  const [networkEnabled, setNetworkEnabled] = useState(ipIntelAvailable);
-  const [networkUsed, setNetworkUsed] = useState(ipIntelAvailable);
-  const [networkState, setNetworkState] = useState<"idle" | "checking" | "ok" | "failed" | "disabled">("idle");
+  const [networkEnabled, setNetworkEnabled] = useState(false);
+  const [networkUsed, setNetworkUsed] = useState(false);
+  const [networkState, setNetworkState] = useState<"idle" | "checking" | "ok" | "failed" | "disabled">("disabled");
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [activeSignal, setActiveSignal] = useState(-1);
@@ -147,11 +147,11 @@ export function Detector({ locale = "zh" }: Props) {
   const fullCoverage = scoreSummary.totalCount > 0 && scoreSummary.evaluatedCount === scoreSummary.totalCount;
   const animatedScore = loading ? Math.round((rawScore * progress) / 100) : rawScore;
   const status = rawScore >= 70 ? "restricted" : rawScore >= 31 ? "possibly_supported" : rawScore > 0 ? "unknown" : fullCoverage ? "supported" : "unknown";
-  const pageRegionCode = region !== "auto" ? region : locale === "zh-HK" ? "hk" : locale === "ru" ? "ru" : "cn";
+  const pageRegionCode: RegionCode = region !== "auto" ? region : locale === "zh-HK" ? "hk" : locale === "ru" ? "ru" : "cn";
   const networkMatchedRegion = networkUsed && networkIntel ? countryRisk(networkIntel.countryCode, region).matchedRegion : null;
-  const detectedRegionCode = (browserResult?.matchedRegion ?? networkMatchedRegion ?? pageRegionCode) as TargetRegion;
+  const detectedRegionCode: RegionCode = browserResult?.matchedRegion ?? networkMatchedRegion ?? pageRegionCode;
   const pageRegion = detectorText.regions[detectedRegionCode];
-  const russianSummaryRegions: Record<TargetRegion, string> = { auto: "российской", cn: "китайской", hk: "гонконгской", ru: "российской", ir: "иранской" };
+  const russianSummaryRegions: Record<RegionCode, string> = { auto: "российской", cn: "китайской", hk: "гонконгской", ru: "российской", ir: "иранской" };
   const suspectedRegion = locale === "ru" ? russianSummaryRegions[detectedRegionCode] : pageRegion;
   const confidenceText = rawScore >= 70 ? detectorText.confidence.high : rawScore >= 31 ? detectorText.confidence.medium : rawScore > 0 ? detectorText.confidence.low : detectorText.confidence.safe;
   const environmentSuffix = locale === "ru" ? "среды" : copy.environmentSuffix;
@@ -221,7 +221,7 @@ export function Detector({ locale = "zh" }: Props) {
     [],
   );
 
-  const runCheck = useCallback(async () => {
+  const runCheck = useCallback(async (options?: { network?: boolean }) => {
     if (runningRef.current) return;
     runningRef.current = true;
     const token = runTokenRef.current + 1;
@@ -235,7 +235,7 @@ export function Detector({ locale = "zh" }: Props) {
     setActiveSignal(0);
     window.dispatchEvent(new CustomEvent("checkcc-running", { detail: true }));
 
-    const useNetwork = networkEnabled && ipIntelAvailable;
+    const useNetwork = (options?.network ?? networkEnabled) && ipIntelAvailable;
     setNetworkUsed(useNetwork);
     setNetworkState(useNetwork ? "checking" : "disabled");
 
@@ -291,6 +291,12 @@ export function Detector({ locale = "zh" }: Props) {
       }
     }
   }, [region, networkEnabled, ipIntelAvailable, ipIntelConfig, detectorText]);
+
+  const enableNetworkAndRerun = () => {
+    if (runningRef.current || !ipIntelAvailable) return;
+    setNetworkEnabled(true);
+    void runCheck({ network: true });
+  };
 
   const changeRegion = (code: RegionCode) => {
     if (code === region) return;
@@ -416,7 +422,14 @@ export function Detector({ locale = "zh" }: Props) {
               <span className="rounded-full bg-[#fffaf3] px-3 py-1 text-xs font-bold text-stone-500">{hasChecked ? copy.signalHitSummary(scoreSummary.hitCount, scoreSummary.totalCount) : copy.signalCount(signals.length, false)}</span>
             </div>
             <div className="mt-2 md:mt-4"><SignalList signals={signals} /></div>
-            <p role="status" className="mt-3 rounded-xl bg-stone-50 px-3 py-2 text-xs font-semibold leading-5 text-stone-500 ring-1 ring-stone-200">{networkNote}</p>
+            <div className="mt-3 rounded-xl bg-stone-50 px-3 py-2 ring-1 ring-stone-200">
+              <p role="status" className="text-xs font-semibold leading-5 text-stone-500">{networkNote}</p>
+              {hasChecked && !networkUsed && ipIntelAvailable && (
+                <button type="button" onClick={enableNetworkAndRerun} disabled={loading} className="mt-2 cursor-pointer rounded-full border border-[#d97757] bg-white px-3 py-1.5 text-xs font-bold text-[#c05f3c] transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60">
+                  {detectorText.network.enableAndRetry}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

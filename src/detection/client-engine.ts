@@ -19,7 +19,9 @@ export const regions: Array<{ code: RegionCode }> = [{ code: "auto" }, { code: "
 
 export function timezoneRisk(timezone: string | null, region: RegionCode) {
   if (!timezone) return 0;
-  if (region === "auto" ? REGION_PROFILES.some((profile) => profile.timezones.includes(timezone)) : Boolean(getRegionProfile(region)?.timezones.includes(timezone))) return 1;
+  if (region === "hk") return getRegionProfile("hk")?.timezones.includes(timezone) ? 1 : 0;
+  // Hong Kong has its own profile, so its timezone stays a weaker signal under auto/CN scoring.
+  if (region === "auto" ? REGION_PROFILES.some((profile) => profile.code !== "hk" && profile.timezones.includes(timezone)) : Boolean(getRegionProfile(region)?.timezones.includes(timezone))) return 1;
   if ((region === "auto" || region === "cn") && ["Asia/Hong_Kong", "Asia/Macau", "Asia/Taipei"].includes(timezone)) return 0.6;
   return 0;
 }
@@ -27,8 +29,9 @@ export function timezoneRisk(timezone: string | null, region: RegionCode) {
 export function languageRisk(languages: string[], region: RegionCode) {
   const values = languages.map((lang) => lang.toLowerCase());
   const matches = (prefix: string) => values.some((lang) => lang === prefix || lang.startsWith(`${prefix}-`));
+  if (region === "hk" && values.some((lang) => /^zh-(hk|mo)|zh-hant|^yue/.test(lang))) return 1;
   if (region === "auto" || region === "cn") {
-    if (values.some((lang) => /^zh-cn|zh-hans|^zh$/.test(lang))) return 1;
+    if (values.some((lang) => /^zh-cn|zh-sg|zh-hans/.test(lang))) return 1;
     if (values.some((lang) => /^zh/.test(lang))) return 0.5;
   }
   if ((region === "auto" || region === "ru") && matches("ru")) return 1;
@@ -40,8 +43,9 @@ export function localeRisk(locale: string | null, region: RegionCode) {
   if (!locale) return 0;
   const value = locale.toLowerCase();
   const matches = (prefix: string) => value === prefix || value.startsWith(`${prefix}-`);
+  if (region === "hk" && /zh-(hk|mo)|zh-hant|^yue/.test(value)) return 1;
   if (region === "auto" || region === "cn") {
-    if (/zh-cn|zh-hans|^zh$/.test(value)) return 1;
+    if (/zh-cn|zh-sg|zh-hans/.test(value)) return 1;
     if (/^zh/.test(value)) return 0.5;
   }
   if ((region === "auto" || region === "ru") && matches("ru")) return 1;
@@ -150,12 +154,12 @@ export function collectBrowserEnvironment(text: DetectorLocaleText): BrowserEnvi
 export function collectBrowserSignals(region: RegionCode, text: DetectorLocaleText, config: DetectionConfig = detectionConfig, snapshot = collectBrowserEnvironment(text)) {
   const { languages, timezone, locale, userAgent: ua, platform, brands } = snapshot;
   const uaLower = ua.toLowerCase();
-  const chineseTarget = region === "auto" || region === "cn";
+  const chineseTarget = region === "auto" || region === "cn" || region === "hk";
   const profile = getRegionProfile(region);
   const browserPatterns = region === "auto" ? Array.from(new Set(REGION_PROFILES.flatMap((item) => item.browserPatterns))) : profile?.browserPatterns ?? [];
   const devicePatterns = chineseTarget ? ["harmonyos", "huawei", "honor", "xiaomi", "redmi", "oppo", "vivo", "realme", "oneplus", "miui"] : profile?.devicePatterns ?? [];
-  const scFonts = ["Microsoft YaHei", "Microsoft JhengHei", "PingFang SC", "Hiragino Sans GB", "STHeiti", "STSong", "SimSun", "SimHei", "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei"].filter(hasFont);
-  const tcFonts = ["PingFang TC", "Heiti TC", "Hiragino Sans CNS", "Noto Sans CJK TC", "Source Han Sans TC", "MingLiU", "PMingLiU"].filter(hasFont);
+  const scFonts = ["Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "STHeiti", "STSong", "SimSun", "SimHei", "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei"].filter(hasFont);
+  const tcFonts = ["PingFang HK", "PingFang TC", "Microsoft JhengHei", "Heiti TC", "Hiragino Sans CNS", "Noto Sans CJK HK", "Noto Sans CJK TC", "Source Han Sans TC", "MingLiU", "PMingLiU"].filter(hasFont);
   const vendorFonts = ["MiSans", "HarmonyOS Sans", "OPPO Sans", "vivo Sans", "Honor Sans", "Alibaba PuHuiTi", "WPS Fangzheng", "FZLanTingHeiS"].filter(hasFont);
   const browserTrait = matchAny(`${uaLower} ${brands.toLowerCase()}`, browserPatterns);
   const deviceTrait = matchAny(`${uaLower} ${platform ?? ""}`, devicePatterns);

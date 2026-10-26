@@ -2,14 +2,12 @@
 import type { LocaleCode } from "@/i18n/messages";
 import type { RegionCode } from "./types";
 
-export type TargetRegion = RegionCode | "hk";
-
 export type DetectorLocaleText = {
   pending: string;
   unknown: string;
   signalLabels: Record<string, string>;
   signalValues: Record<string, string>;
-  regions: Record<TargetRegion, string>;
+  regions: Record<RegionCode, string>;
   status: Record<string, string>;
   risk: { waiting: string; checking: string; supported: string; blocked: string; high: string; light: string; unknown: string; scoreLabel: string };
   valueMap: Record<string, string>;
@@ -26,6 +24,7 @@ export type DetectorLocaleText = {
     failed: string;
     disabled: string;
     unavailable: string;
+    enableAndRetry: string;
   };
   settings: { label: string; networkOn: string; networkOff: string; changeHint: string };
   recommendationsTitle: string;
@@ -75,12 +74,13 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
     network: {
       toggleLabel: "同时检测网络出口（IP）",
       toggleHint: "浏览器直连 {provider} 查询。本站不经过服务器转发，但该服务会看到你的 IP。",
-      idle: "网络层：默认通过 {provider} 查询本机出口 IP，可随时关闭。请求由浏览器直连第三方服务，本站不接收或存储查询结果。",
+      idle: "网络层：已开启。检测时浏览器将通过 {provider} 查询出口 IP；请求由浏览器直连第三方服务，本站不接收或存储查询结果。",
       checking: "网络层：正在通过 {provider} 查询出口 IP…",
       success: "网络层：已通过 {provider} 获取出口 IP。查询由浏览器直连第三方服务，本站不接收或存储该数据。",
       failed: "网络层：{provider} 查询失败或超时，已跳过 IP 信号；缺少网络证据不会抬高分数。可重试，或在下次检测时关闭网络层。",
       disabled: "网络层：已关闭。本次仅基于浏览器信号评分，未向第三方发送 IP 查询请求。",
       unavailable: "查询失败",
+      enableAndRetry: "开启网络层并重测",
     },
     settings: { label: "检测设置", networkOn: "网络层开启", networkOff: "网络层关闭", changeHint: "修改检测目标会清空当前结果，请重新点击检测。" },
     recommendationsTitle: "下一步建议",
@@ -128,12 +128,13 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
     network: {
       toggleLabel: "同時檢測網絡出口（IP）",
       toggleHint: "瀏覽器直連 {provider} 查詢。本站不經伺服器轉發，但該服務會看到你的 IP。",
-      idle: "網絡層：預設透過 {provider} 查詢本機出口 IP，可隨時關閉。請求由瀏覽器直連第三方服務，本站不接收或儲存查詢結果。",
+      idle: "網絡層：已開啟。檢測時瀏覽器將透過 {provider} 查詢出口 IP；請求由瀏覽器直連第三方服務，本站不接收或儲存查詢結果。",
       checking: "網絡層：正在透過 {provider} 查詢出口 IP…",
       success: "網絡層：已透過 {provider} 取得出口 IP。查詢由瀏覽器直連第三方服務，本站不接收或儲存該資料。",
       failed: "網絡層：{provider} 查詢失敗或逾時，已略過 IP 訊號；缺少網絡證據不會抬高分數。可重試，或在下次檢測時關閉網絡層。",
       disabled: "網絡層：已關閉。本次僅基於瀏覽器訊號評分，未向第三方傳送 IP 查詢請求。",
       unavailable: "查詢失敗",
+      enableAndRetry: "開啟網絡層並重測",
     },
     settings: { label: "檢測設定", networkOn: "網絡層已開啟", networkOff: "網絡層已關閉", changeHint: "修改檢測目標會清空目前結果，請重新點擊檢測。" },
     recommendationsTitle: "下一步建議",
@@ -181,12 +182,13 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
     network: {
       toggleLabel: "Проверять сетевой выход (IP)",
       toggleHint: "Браузер обращается к {provider} напрямую. Сайт не проксирует запрос, но провайдер увидит ваш IP.",
-      idle: "Сетевой слой: по умолчанию браузер запрашивает ваш публичный IP у {provider}. Это можно отключить. Запрос идёт напрямую третьей стороне; сайт не получает и не хранит результат.",
+      idle: "Сетевой слой: включён. При проверке браузер запросит публичный IP у {provider}; запрос идёт напрямую третьей стороне, сайт не получает и не хранит результат.",
       checking: "Сетевой слой: запрашиваем публичный IP через {provider}…",
       success: "Сетевой слой: публичный IP получен через {provider}. Запрос отправлен напрямую из браузера; сайт не получает и не хранит его.",
       failed: "Сетевой слой: запрос к {provider} не удался или превысил время ожидания, IP-сигналы пропущены. Отсутствие сетевых данных не завышает оценку. Повторите проверку или отключите сетевой слой.",
       disabled: "Сетевой слой: отключён. Проверка использует только сигналы браузера и не отправляет запросы третьей стороне.",
       unavailable: "Не получено",
+      enableAndRetry: "Включить сеть и повторить",
     },
     settings: { label: "Настройки", networkOn: "Сетевой слой вкл.", networkOff: "Сетевой слой выкл.", changeHint: "Смена цели проверки очистит текущий результат; запустите проверку снова." },
     recommendationsTitle: "Рекомендации",
@@ -234,12 +236,13 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
     network: {
       toggleLabel: "Also check network egress (IP)",
       toggleHint: "Your browser queries {provider} directly. This site does not proxy the request, but the provider will see your IP.",
-      idle: "Network layer: by default your browser queries {provider} for your public IP. You can turn this off. The request goes directly to the third party; this site does not receive or store the result.",
+      idle: "Network layer: on. During the check your browser queries {provider} for your public IP; the request goes directly to the third party and this site does not receive or store the result.",
       checking: "Network layer: querying your public IP via {provider}…",
       success: "Network layer: public IP retrieved via {provider}. The request was sent directly from your browser; this site does not receive or store it.",
       failed: "Network layer: the {provider} lookup failed or timed out, so IP signals were skipped. Missing network evidence does not inflate the score. Retry, or turn the network layer off for the next check.",
       disabled: "Network layer: off. This check uses browser signals only and sent no IP lookup request to a third party.",
       unavailable: "Lookup failed",
+      enableAndRetry: "Turn on network and recheck",
     },
     settings: { label: "Check settings", networkOn: "Network on", networkOff: "Network off", changeHint: "Changing the target clears the current result. Run the check again." },
     recommendationsTitle: "Next steps",
