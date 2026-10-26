@@ -195,6 +195,9 @@ describe("region risk helpers", () => {
     expect(timezoneRisk("Asia/Shanghai", "auto")).toBe(1);
     expect(timezoneRisk("Asia/Shanghai", "cn")).toBe(1);
     expect(timezoneRisk("Europe/Moscow", "ru")).toBe(1);
+    expect(timezoneRisk("Europe/Samara", "ru")).toBe(1);
+    expect(timezoneRisk("Asia/Kamchatka", "ru")).toBe(1);
+    expect(timezoneRisk("Europe/Kaliningrad", "auto")).toBe(1);
     expect(timezoneRisk("Europe/Moscow", "cn")).toBe(0);
     expect(timezoneRisk("Asia/Tehran", "ir")).toBe(1);
     expect(timezoneRisk("Asia/Hong_Kong", "auto")).toBe(0.6);
@@ -223,7 +226,10 @@ describe("region risk helpers", () => {
 });
 
 describe("collectBrowserSignals", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   function stubCanvas() {
     vi.stubGlobal("document", {
@@ -245,9 +251,44 @@ describe("collectBrowserSignals", () => {
     expect(byId.language.contribution).toBe(20);
     expect(byId.locale.contribution).toBe(6);
     expect(byId.domesticBrowser.contribution).toBe(8);
+    expect(byId.domesticDevice.contribution).toBe(0);
+    expect(byId.emojiStyle.contribution).toBe(2);
     expect(byId.languageVariant.contribution).toBe(0);
     expect(byId.chineseFonts.contribution).toBe(0);
     expect(byId.timezoneOffset.contribution).toBe(0);
+    expect(result.matchedRegion).toBe("ru");
+  });
+
+  it("keeps a generic US Windows browser from being attributed to Russia", () => {
+    stubCanvas();
+    vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(240);
+    const result = collectBrowserSignals(
+      "auto",
+      detectorLocaleText.en,
+      detectionConfig,
+      { languages: ["en-US"], timezone: "America/New_York", locale: "en-US", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36", platform: "Windows", brands: "Google Chrome" },
+    );
+    const byId = Object.fromEntries(result.signals.map((item) => [item.id, item]));
+
+    expect(result.matchedRegion).toBeNull();
+    expect(byId.emojiStyle.contribution).toBe(0);
+    expect(byId.domesticDevice.contribution).toBe(0);
+    expect(summarizeSignals(result.signals).score).toBe(0);
+  });
+
+  it("scores Yandex on Windows as Russian evidence in auto mode", () => {
+    stubCanvas();
+    const result = collectBrowserSignals(
+      "auto",
+      detectorLocaleText.ru,
+      detectionConfig,
+      { languages: ["ru-RU"], timezone: "Europe/Moscow", locale: "ru-RU", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 YaBrowser/24.1 Chrome/120 Safari/537.36", platform: "Windows", brands: "Yandex" },
+    );
+    const byId = Object.fromEntries(result.signals.map((item) => [item.id, item]));
+
+    expect(result.matchedRegion).toBe("ru");
+    expect(byId.emojiStyle.contribution).toBe(2);
+    expect(byId.domesticDevice.contribution).toBe(0);
   });
 
   it("keeps Chinese signals scored when mainland China is the selected target", () => {

@@ -7,7 +7,7 @@
 >
 > This fork focuses on browser-side environment checks and can optionally add a network-layer signal through a third-party IP geolocation service queried directly by the browser (ipwho.is by default). When the network layer is on, that provider will see your public IP; the request does not pass through this site's server, and this site does not receive or store the result. Results highlight obvious environment-profile conflicts; they are not an official Claude or Anthropic judgment.
 
-[CheckCC.org](https://checkcc.org) is the upstream online demo. This fork prioritizes trustworthy reporting: unevaluated signals are no longer scored as zero risk, the report shows evaluable coverage, the network layer can be turned off, and a failed lookup neither counts as zero risk nor inflates the score.
+This fork prioritizes trustworthy reporting: unevaluated signals are no longer scored as zero risk, the report shows evaluable coverage, the network layer can be turned off, and a failed lookup neither counts as zero risk nor inflates the score.
 
 ## Capability boundaries
 

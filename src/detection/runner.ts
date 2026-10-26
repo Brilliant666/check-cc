@@ -1,42 +1,22 @@
-// CheckCC 的检测运行器，用于收集浏览器环境并按插件配置生成去重后的风险信号结果。
+// CheckCC 的检测运行器，用于收集浏览器环境并生成按目标地区评分的信号结果。
 import { collectBrowserEnvironment, collectBrowserSignals } from "./client-engine";
 import { detectionConfig, type DetectionConfig } from "./config";
-import type { DetectionPluginContext } from "./plugin";
-import { detectionPlugins } from "./plugins";
-import type { SignalResult } from "./types";
+import type { DetectorLocaleText } from "./locale";
+import type { RegionCode, SignalResult } from "./types";
 
 export type DetectionRunResult = {
   signals: SignalResult[];
   browserResult: ReturnType<typeof collectBrowserSignals>;
 };
 
-function enabledPlugins(config: DetectionConfig) {
-  return detectionPlugins.filter((plugin) => plugin.id === "browser-environment" || config.signals[plugin.id]?.enabled !== false);
-}
+export type DetectionInput = {
+  region: RegionCode;
+  text: DetectorLocaleText;
+  config?: DetectionConfig;
+};
 
-function uniqueSignals(signals: SignalResult[]) {
-  const map = new Map<string, SignalResult>();
-  for (const signal of signals) {
-    const key = `${signal.source}:${signal.id}`;
-    if (!map.has(key)) map.set(key, signal);
-  }
-  return Array.from(map.values());
-}
-
-export async function runDetection(context: Omit<DetectionPluginContext, "config" | "browser"> & { config?: DetectionConfig }): Promise<DetectionRunResult> {
-  const config = context.config ?? detectionConfig;
-  const browser = collectBrowserEnvironment(context.text);
-  const pluginContext: DetectionPluginContext = { ...context, config, browser };
-  const browserResult = collectBrowserSignals(context.region, context.text, config, browser);
-  const plugins = enabledPlugins(config);
-  const pluginSignals = plugins.length
-    ? (await Promise.all(plugins.map((plugin) => plugin.id === "browser-environment" ? browserResult.signals : plugin.run(pluginContext)))).flat()
-    : [];
-  // Browser-environment results already cover the duplicate plugin signals and respect the selected region.
-  const signals = uniqueSignals([...browserResult.signals, ...pluginSignals]);
-
-  return {
-    browserResult: { ...browserResult, signals },
-    signals,
-  };
+export async function runDetection({ region, text, config = detectionConfig }: DetectionInput): Promise<DetectionRunResult> {
+  const browser = collectBrowserEnvironment(text);
+  const browserResult = collectBrowserSignals(region, text, config, browser);
+  return { browserResult, signals: browserResult.signals };
 }

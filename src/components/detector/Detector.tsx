@@ -1,7 +1,7 @@
 "use client";
 
 // CheckCC 的浏览器端检测组件，用于执行环境扫描、展示风险信号、进度状态和检测结果。
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { RegionCode, SignalResult } from "@/detection/types";
 import {
@@ -89,6 +89,10 @@ export function Detector({ locale = "zh" }: Props) {
   const [activeSignal, setActiveSignal] = useState(-1);
   const [showRegionPicker, setShowRegionPicker] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const runningRef = useRef(false);
+  const runTokenRef = useRef(0);
 
   const signals = useMemo<SignalView[]>(() => {
     const map = new Map<string, SignalResult>();
@@ -196,57 +200,6 @@ export function Detector({ locale = "zh" }: Props) {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const runCheck = async () => {
-    setLoading(true);
-    setBrowserResult(null);
-    setNetworkIntel(null);
-    setProgress(0);
-    setActiveSignal(0);
-
-    const useNetwork = networkEnabled && ipIntelAvailable;
-    setNetworkUsed(useNetwork);
-    setNetworkState(useNetwork ? "checking" : "disabled");
-
-    let local: DetectionRunResult["browserResult"] | null = null;
-
-    for (let index = 0; index < scanSteps.length; index += 1) {
-      const from = Math.round((index / scanSteps.length) * 92);
-      const to = Math.round(((index + 1) / scanSteps.length) * 92);
-
-      if (index === 0 || index === 1 || index === 4) {
-        const result = await runDetection({ region, locale, text: detectorText, config: detectionConfig });
-        local = result.browserResult;
-        setBrowserResult(local);
-      }
-
-      const progressAnimation = animateProgress(from, to, setProgress, setActiveSignal);
-      if (index === 2 && useNetwork && ipIntelConfig) {
-        const [lookup] = await Promise.all([
-          lookupNetworkIntel({ endpoint: ipIntelConfig.endpoint, timeoutMs: ipIntelConfig.timeoutMs }),
-          progressAnimation,
-        ]);
-        if (lookup.status === "ok") {
-          setNetworkIntel(lookup.intel);
-          setNetworkState("ok");
-        } else {
-          setNetworkState("failed");
-        }
-      } else {
-        await progressAnimation;
-      }
-      await sleep(45);
-    }
-
-    if (!local) {
-      const result = await runDetection({ region, locale, text: detectorText, config: detectionConfig });
-      setBrowserResult(result.browserResult);
-    }
-
-    await animateProgress(92, 100, setProgress, setActiveSignal);
-    setActiveSignal(defaultSignals.length);
-    setLoading(false);
-  };
-
   const hasChecked = progress === 100;
   const ringActive = loading || progress > 0;
   const riskLabel = !ringActive ? detectorText.risk.waiting : !hasChecked ? detectorText.risk.checking : animatedScore === 0 ? (fullCoverage ? detectorText.risk.supported : detectorText.risk.unknown) : animatedScore >= 70 ? detectorText.risk.blocked : animatedScore >= 31 ? detectorText.risk.high : detectorText.risk.light;
@@ -263,10 +216,132 @@ export function Detector({ locale = "zh" }: Props) {
   const networkNote = networkNoteTemplate.replaceAll("{provider}", networkProvider);
 
   useEffect(() => {
-    const openPicker = () => setShowRegionPicker(true);
+    if (!showRegionPicker) return;
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const panel = pickerRef.current;
+    const focusables = () =>
+      panel
+        ? Array.from(
+            panel.querySelectorAll<HTMLElement>(
+              'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            ),
+          ).filter((element) => element.getClientRects().length > 0)
+        : [];
+    focusables()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setShowRegionPicker(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusables();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      if (openerRef.current?.isConnected) openerRef.current.focus();
+    };
+  }, [showRegionPicker]);
+
+  useEffect(() => {
+    const openPicker = () => {
+      if (runningRef.current) return;
+      setShowRegionPicker(true);
+    };
     window.addEventListener("open-region-picker", openPicker);
     return () => window.removeEventListener("open-region-picker", openPicker);
   }, []);
+
+  useEffect(
+    () => () => {
+      runTokenRef.current += 1;
+      runningRef.current = false;
+      window.dispatchEvent(new CustomEvent("checkcc-running", { detail: false }));
+    },
+    [],
+  );
+
+  const runCheck = async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    const token = runTokenRef.current + 1;
+    runTokenRef.current = token;
+    const activeRegion = region;
+    setShowRegionPicker(false);
+    setLoading(true);
+    setBrowserResult(null);
+    setNetworkIntel(null);
+    setProgress(0);
+    setActiveSignal(0);
+    window.dispatchEvent(new CustomEvent("checkcc-running", { detail: true }));
+
+    const useNetwork = networkEnabled && ipIntelAvailable;
+    setNetworkUsed(useNetwork);
+    setNetworkState(useNetwork ? "checking" : "disabled");
+
+    let local: DetectionRunResult["browserResult"] | null = null;
+
+    try {
+      for (let index = 0; index < scanSteps.length; index += 1) {
+        if (runTokenRef.current !== token) return;
+        const from = Math.round((index / scanSteps.length) * 92);
+        const to = Math.round(((index + 1) / scanSteps.length) * 92);
+
+        if (index === 0) {
+          const result = await runDetection({ region: activeRegion, text: detectorText, config: detectionConfig });
+          if (runTokenRef.current !== token) return;
+          local = result.browserResult;
+          setBrowserResult(local);
+        }
+
+        const progressAnimation = animateProgress(from, to, setProgress, setActiveSignal);
+        if (index === 2 && useNetwork && ipIntelConfig) {
+          const [lookup] = await Promise.all([
+            lookupNetworkIntel({ endpoint: ipIntelConfig.endpoint, timeoutMs: ipIntelConfig.timeoutMs }),
+            progressAnimation,
+          ]);
+          if (runTokenRef.current !== token) return;
+          if (lookup.status === "ok") {
+            setNetworkIntel(lookup.intel);
+            setNetworkState("ok");
+          } else {
+            setNetworkState("failed");
+          }
+        } else {
+          await progressAnimation;
+        }
+        if (runTokenRef.current !== token) return;
+        await sleep(45);
+      }
+
+      if (!local) {
+        const result = await runDetection({ region: activeRegion, text: detectorText, config: detectionConfig });
+        if (runTokenRef.current !== token) return;
+        setBrowserResult(result.browserResult);
+      }
+
+      await animateProgress(92, 100, setProgress, setActiveSignal);
+      if (runTokenRef.current !== token) return;
+      setActiveSignal(defaultSignals.length);
+    } finally {
+      if (runTokenRef.current === token) {
+        setLoading(false);
+        runningRef.current = false;
+        window.dispatchEvent(new CustomEvent("checkcc-running", { detail: false }));
+      }
+    }
+  };
 
   return (
     <section className="mx-auto p-0">
@@ -287,7 +362,7 @@ export function Detector({ locale = "zh" }: Props) {
         <button type="button" onClick={() => setShowRegionPicker(true)} disabled={loading} className="h-14 w-full cursor-pointer rounded-full bg-[#d97757] px-8 text-lg font-black text-white shadow-xl shadow-orange-900/20 transition hover:bg-[#c05f3c] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto md:min-w-[360px]">
           {loading ? copy.loadingText : copy.idleCta}
         </button>
-        <div className="relative mt-10 text-center font-black">
+        <div className="relative mt-10 text-center font-black" role="status" aria-live="polite" aria-atomic="true">
           <div className="py-3 leading-tight md:py-4">
             {hasChecked ? (
               rawScore === 0 && !fullCoverage ? (
@@ -360,19 +435,19 @@ export function Detector({ locale = "zh" }: Props) {
 
       {showRegionPicker && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] grid place-items-center bg-black/45 p-4" onClick={() => setShowRegionPicker(false)}>
-          <div className="relative z-[10000] w-full max-w-md rounded-[2rem] border border-stone-200 bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <div ref={pickerRef} role="dialog" aria-modal="true" aria-labelledby="region-picker-title" aria-describedby="region-picker-desc" className="relative z-[10000] w-full max-w-md rounded-[2rem] border border-stone-200 bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-xl font-black text-[#0b1220]">{copy.targetTitle}</h3>
-                <p className="mt-1 text-sm text-stone-500">{copy.targetDesc}</p>
+                <h3 id="region-picker-title" className="text-xl font-black text-[#0b1220]">{copy.targetTitle}</h3>
+                <p id="region-picker-desc" className="mt-1 text-sm text-stone-500">{copy.targetDesc}</p>
               </div>
               <button type="button" onClick={() => setShowRegionPicker(false)} aria-label={copy.close} className="grid size-11 place-items-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200">
                 <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
               </button>
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-3">
+            <div role="group" aria-label={copy.targetTitle} className="mt-5 grid grid-cols-2 gap-3">
               {regions.map((item) => (
-                <button key={item.code} type="button" onClick={() => setRegion(item.code)} className={`rounded-2xl border px-4 py-4 text-center font-black transition ${region === item.code ? "border-[#d97757] bg-orange-50 text-[#c05f3c]" : "border-stone-200 bg-white text-[#0b1220] hover:border-stone-300"}`}>
+                <button key={item.code} type="button" aria-pressed={region === item.code} onClick={() => setRegion(item.code)} className={`rounded-2xl border px-4 py-4 text-center font-black transition ${region === item.code ? "border-[#d97757] bg-orange-50 text-[#c05f3c]" : "border-stone-200 bg-white text-[#0b1220] hover:border-stone-300"}`}>
                   {detectorText.regions[item.code]}
                 </button>
               ))}
@@ -386,7 +461,7 @@ export function Detector({ locale = "zh" }: Props) {
                 </span>
               </label>
             )}
-            <button type="button" onClick={() => { setShowRegionPicker(false); void runCheck(); }} className="mt-5 h-12 w-full cursor-pointer rounded-full bg-[#d97757] font-black text-white shadow-lg shadow-orange-900/15">
+            <button type="button" onClick={() => { setShowRegionPicker(false); void runCheck(); }} disabled={loading} className="mt-5 h-12 w-full cursor-pointer rounded-full bg-[#d97757] font-black text-white shadow-lg shadow-orange-900/15 disabled:cursor-not-allowed disabled:opacity-60">
               {copy.startCheck}
             </button>
           </div>

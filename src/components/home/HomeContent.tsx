@@ -1,15 +1,9 @@
-// CheckCC 的中文首页检测入口，用于渲染首页内容、环境检测模块、地区说明、隐私说明和 FAQ。
-import type { Metadata } from "next";
+// CheckCC 的本地化首页内容，用于渲染首页、环境检测模块、地区说明、隐私说明和 FAQ。
 import { Detector } from "@/components/detector/Detector";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteFrame } from "@/components/layout/SiteFrame";
 import { localeRoutes, messages, type LocaleCode } from "@/i18n/messages";
 import { siteUrl } from "@/site-config";
-
-export const metadata: Metadata = {
-  title: "检查 Claude 封号风险",
-  description: "浏览器环境指纹引擎，综合扫描 Claude 运行环境、地区画像与账号环境风险",
-};
 
 const pageMax = "mx-auto w-full max-w-[1440px] px-5 md:px-8 2xl:max-w-[1536px] min-[1800px]:max-w-[1760px] min-[1920px]:max-w-[1920px] min-[2400px]:max-w-[2200px]";
 
@@ -169,8 +163,4 @@ export function HomeContent({ locale = "zh" }: { locale?: LocaleCode }) {
     </main>
     </SiteFrame>
   );
-}
-
-export default function Home() {
-  return <HomeContent />;
 }

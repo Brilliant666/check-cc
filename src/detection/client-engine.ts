@@ -164,13 +164,16 @@ export function collectBrowserSignals(region: RegionCode, text: DetectorLocaleTe
   const timezoneScore = timezoneRisk(timezone, region);
   const languageScore = languageRisk(languages, region);
   const localeScore = localeRisk(locale, region);
+  const access = evaluateAccess({ region, languages, timezone, locale, userAgent: ua, source: "browser" });
+  const hasRegionEvidence = region !== "auto" || access.matchedRegion !== null;
   const languageVariantScore = chineseTarget && chineseVariant ? 1 : 0;
   const fontScore = chineseTarget ? (scFonts.length ? Math.min(1, 0.75 + 0.08 * scFonts.length) : tcFonts.length ? 0.5 : 0) : 0;
   const vendorFontScore = chineseTarget ? (vendorFonts.length >= 2 ? 1 : vendorFonts.length === 1 ? 0.8 : 0) : 0;
   const deviceScore = deviceTrait ? (chineseTarget ? (deviceTrait === "harmonyos" ? 1 : 0.7) : 0.3) : 0;
   const timezoneOffsetScore = chineseTarget && offset === 8 ? 0.7 : 0;
   const emojiStyle = /iphone|ipad|mac os/i.test(ua) ? text.signalValues.appleEmoji : /android|harmonyos/i.test(ua) ? text.signalValues.androidEmoji : /windows/i.test(ua) ? text.signalValues.windowsEmoji : text.signalValues.unknownEmoji;
-  const emojiScore = /android|harmonyos|windows/i.test(ua) ? 0.4 : /iphone|ipad|mac os/i.test(ua) ? 0.2 : 0;
+  // Emoji rendering only correlates with region when another signal already points to a region.
+  const emojiScore = hasRegionEvidence ? (/android|harmonyos|windows/i.test(ua) ? 0.4 : /iphone|ipad|mac os/i.test(ua) ? 0.2 : 0) : 0;
   const label = text.signalLabels;
   const value = text.signalValues;
   const signals: SignalResult[] = [
@@ -188,7 +191,7 @@ export function collectBrowserSignals(region: RegionCode, text: DetectorLocaleTe
     makeSignalScore("timezoneOffset", label.timezoneOffset, `UTC${offset >= 0 ? "+" : ""}${offset}`, 4, timezoneOffsetScore, text, config),
     makeSignalScore("emojiStyle", label.emojiStyle, emojiStyle, 4, emojiScore, text, config),
   ].filter((signal) => getSignalConfig(signal.id, config)?.enabled !== false);
-  return { ...evaluateAccess({ region, languages, timezone, locale, userAgent: ua, source: "browser" }), signals };
+  return { ...access, signals };
 }
 
 export function isPublicIp(ip: string) {

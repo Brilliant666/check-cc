@@ -3,7 +3,7 @@
 // CheckCC 的站点导航布局框架，用于提供品牌入口、多语言导航、移动端菜单和页面内容容器。
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { localeRoutes, messages, type LocaleCode } from "@/i18n/messages";
 import { repoUrl } from "@/site-config";
 
@@ -20,6 +20,9 @@ function Brand() {
 export function SiteFrame({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [localeOpen, setLocaleOpen] = useState(false);
+  const [running, setRunning] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
   const normalizedPathname = pathname.replace(/\/$/, "") || "/";
   const activeLocale: LocaleCode = normalizedPathname === "/hong-kong" ? "zh-HK" : normalizedPathname === "/russia" ? "ru" : normalizedPathname === "/en" ? "en" : "zh";
@@ -35,6 +38,11 @@ export function SiteFrame({ children }: { children: ReactNode }) {
     { href: "#faq", label: copy.nav.faq },
   ];
 
+  const closeMenu = () => {
+    setOpen(false);
+    menuButtonRef.current?.focus();
+  };
+
   useEffect(() => {
     const closeDesktopMenus = () => {
       if (window.matchMedia("(min-width: 768px)").matches) {
@@ -47,12 +55,32 @@ export function SiteFrame({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("resize", closeDesktopMenus);
   }, []);
 
+  useEffect(() => {
+    const onRunning = (event: Event) => setRunning(Boolean((event as CustomEvent<boolean>).detail));
+    window.addEventListener("checkcc-running", onRunning);
+    return () => window.removeEventListener("checkcc-running", onRunning);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    closeButtonRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#f7f2ea] bg-[radial-gradient(circle_at_16%_8%,rgba(217,119,87,0.14),transparent_30%),radial-gradient(circle_at_84%_6%,rgba(245,158,11,0.10),transparent_28%),linear-gradient(180deg,#fffaf3_0%,#f7f2ea_42%,#f7f2ea_100%)] text-[#0b1220]">
-      <aside className={`fixed left-0 top-0 z-[70] h-screen w-[35vw] min-w-[148px] max-w-[260px] border-r border-stone-200 bg-[#fffaf3] p-5 shadow-2xl transition-transform duration-300 md:hidden ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside id="mobile-menu" aria-hidden={!open} inert={!open} className={`fixed left-0 top-0 z-[70] h-screen w-[35vw] min-w-[148px] max-w-[260px] border-r border-stone-200 bg-[#fffaf3] p-5 shadow-2xl transition-transform duration-300 md:hidden ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="mb-8 flex items-center justify-between gap-3">
           <span className="text-sm font-black">{copy.nav.menu}</span>
-          <button type="button" onClick={() => setOpen(false)} className="rounded-full bg-stone-100 px-2 py-1 text-xs font-bold text-stone-600">{copy.nav.close}</button>
+          <button ref={closeButtonRef} type="button" onClick={closeMenu} className="rounded-full bg-stone-100 px-2 py-1 text-xs font-bold text-stone-600">{copy.nav.close}</button>
         </div>
         <nav className="flex flex-col gap-4 text-sm font-black text-stone-700">
           {navItems.map((item) => (
@@ -72,13 +100,13 @@ export function SiteFrame({ children }: { children: ReactNode }) {
           </div>
         </nav>
       </aside>
-      {open && <button type="button" aria-label={copy.nav.close} className="fixed inset-0 z-[60] bg-transparent md:hidden" onClick={() => setOpen(false)} />}
+      {open && <button type="button" tabIndex={-1} aria-label={copy.nav.close} className="fixed inset-0 z-[60] bg-transparent md:hidden" onClick={closeMenu} />}
 
       <div className={`pt-[72px] transition-transform duration-300 ${open ? "max-md:translate-x-[35vw]" : "translate-x-0"}`}>
         <header className="fixed left-0 top-0 z-50 w-full border-b border-stone-200 bg-[#fffaf3]/88 backdrop-blur-xl">
           <div className={`${pageMax} flex h-[72px] items-center justify-between`}>
             <div className="flex items-center gap-3">
-              <button type="button" onClick={() => setOpen(true)} aria-label={copy.nav.menu} className="grid size-11 place-items-center rounded-full border border-stone-200 bg-white text-[#0b1220] md:hidden">
+              <button ref={menuButtonRef} type="button" onClick={() => setOpen(true)} aria-label={copy.nav.menu} aria-expanded={open} aria-controls="mobile-menu" className="grid size-11 place-items-center rounded-full border border-stone-200 bg-white text-[#0b1220] md:hidden">
                 <span className="flex flex-col gap-1.5">
                   <span className="block h-0.5 w-5 rounded-full bg-current" />
                   <span className="block h-0.5 w-5 rounded-full bg-current" />
@@ -115,7 +143,7 @@ export function SiteFrame({ children }: { children: ReactNode }) {
                   )}
                 </div>
               </nav>
-              <button type="button" onClick={() => window.dispatchEvent(new Event("open-region-picker"))} className="cursor-pointer rounded-full bg-[#0b1220] px-5 py-2.5 text-sm font-black text-white transition hover:bg-[#d97757]">{copy.nav.detect}</button>
+              <button type="button" onClick={() => window.dispatchEvent(new Event("open-region-picker"))} disabled={running} className="cursor-pointer rounded-full bg-[#0b1220] px-5 py-2.5 text-sm font-black text-white transition hover:bg-[#d97757] disabled:cursor-not-allowed disabled:opacity-60">{copy.nav.detect}</button>
             </div>
           </div>
         </header>
