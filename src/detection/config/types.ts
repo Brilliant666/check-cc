@@ -26,6 +26,7 @@ export type DetectionSignalConfig = {
 export type DetectionServiceConfig = {
   enabled: boolean;
   endpoint: string;
+  fallbackEndpoint?: string;
   timeoutMs: number;
 };
 

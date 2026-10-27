@@ -76,7 +76,8 @@ CHECKCC_BIND=127.0.0.1 CHECKCC_PORT=8080 ./deploy/deploy.sh
 | `NEXT_PUBLIC_SITE_URL` | 空 | 站点公开地址，例如 `https://check.example.com`。设置后才生成 canonical、hreflang、OG URL 和 sitemap |
 | `NEXT_PUBLIC_REPO_URL` | 本仓库 | 页头、页脚使用的 GitHub 地址 |
 | `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | `false` 时彻底关闭网络层 |
-| `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | 浏览器直连的 CORS IP 查询接口 |
+| `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | 浏览器直连的主 CORS IP 查询接口 |
+| `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://ipapi.co/json/` | 主接口失败、超时或被限流时自动尝试；设为空字符串可关闭回退 |
 | `CHECKCC_BIND` | `0.0.0.0` | 宿主机监听地址 |
 | `CHECKCC_PORT` | `8080` | 宿主机端口 |
 

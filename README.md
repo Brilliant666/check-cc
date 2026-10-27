@@ -60,7 +60,7 @@
 
 ![CheckCC 开启网络层后的检测结果](./docs/images/readme/detection-network.png)
 
-点击“开启网络层并重测”后，浏览器会直连 `ipwho.is` 查询出口 IP，覆盖率变为 `11/11`，并增加 IP 国家、IP 地址、位置、ASN 和网络组织。只有 IP 国家参与评分。
+点击“开启网络层并重测”后，浏览器会直连 `ipwho.is` 查询出口 IP；如果主接口失败或被限流，会自动回退到 `ipapi.co`，并在提示中显示实际使用的服务。覆盖率变为 `11/11`，并增加 IP 国家、IP 地址、位置、ASN 和网络组织。只有 IP 国家参与评分。
 
 ### 🇭🇰 香港环境独立画像
 
@@ -155,7 +155,7 @@
 
 - 检测不需要登录 Claude，不读取账号、密码、Cookie 或聊天内容。
 - 网络层默认关闭；默认检测只使用浏览器信号，不向第三方发送 IP 查询。
-- 开启网络层时，浏览器直接请求配置的第三方 IP 地理服务（默认 `ipwho.is`），该服务会看到你的公网 IP；请求不经过本站服务器，本站不接收、不转发、不存储查询结果。
+- 开启网络层时，浏览器直接请求配置的第三方 IP 地理服务（默认 `ipwho.is`，失败时自动回退到 `ipapi.co`），这些服务会看到你的公网 IP；请求不经过本站服务器，本站不接收、不转发、不存储查询结果。成功提示会显示本次实际使用的服务。
 - 请求使用 `credentials: "omit"` 和 `no-referrer`，不携带 Cookie 或来源页面。
 - 检测结果不会自动上传；报告由浏览器本地生成。
 - 当前版本未接入第三方访问统计脚本。
@@ -288,9 +288,10 @@ pnpm build
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | 设为 `false` 时彻底关闭网络层，界面不显示开关，也不发送 IP 查询。设为 `true` 只提供按需开启的选项，首次检测仍默认不请求 IP |
-| `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | 必须是支持 CORS 的 HTTPS 接口；浏览器会直接请求它 |
+| `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | 主查询接口，必须是支持 CORS 的 HTTPS 接口；浏览器会直接请求它 |
+| `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://ipapi.co/json/` | 主接口失败、超时或被限流时自动尝试的备用接口；设为空字符串可关闭回退。成功提示显示实际使用的服务 |
 
-接口可以返回 ipwho.is 的原始结构，也可以返回下面的扁平结构：
+接口可以返回 ipwho.is 的原始结构，也可以返回 ipapi.co 或自建接口常见的扁平结构：
 
 ```json
 {
@@ -308,14 +309,14 @@ pnpm build
 }
 ```
 
-查询超时为 3500ms（见 `src/detection/config/services.ts`）。超时、跨域失败、返回格式异常或返回内网/保留地址时，页面会跳过 IP 信号并显示失败原因，不会把失败当成 0 风险，也不会抬高分数。
+每个查询接口的超时为 3500ms（见 `src/detection/config/services.ts`）。主接口超时、跨域失败、返回格式异常或返回内网/保留地址时，会自动尝试备用接口；全部失败后页面才跳过 IP 信号并显示失败原因，不会把失败当成 0 风险，也不会抬高分数。
 
 ## 🧪 开发与校验
 
 ```bash
 pnpm lint        # ESLint
 pnpm typecheck   # TypeScript
-pnpm test        # Vitest，62 项测试
+pnpm test        # Vitest，68 项测试
 pnpm check       # lint + typecheck + test
 pnpm build       # 静态导出
 ```
@@ -347,7 +348,7 @@ GitHub Actions 会在 push 和 pull request 时执行 lint、类型检查、单�
 
 ### 3. 网络层查询失败会影响分数吗？
 
-不会。查询失败时，国家信号显示为“查询失败/未检测”，覆盖率下降，但分数不会因为缺失的 20 分权重被放大。
+不会。主接口失败时会自动尝试备用接口；全部接口失败后，国家信号显示为“查询失败/未检测”，覆盖率下降，但分数不会因为缺失的 20 分权重被放大。
 
 ### 4. 检测结果能证明账号安全吗？
 
@@ -366,12 +367,13 @@ GitHub Actions 会在 push 和 pull request 时执行 lint、类型检查、单�
 ### 当前版本
 
 - 网络层改为默认关闭，首次检测不发送 IP 查询
+- 网络层新增 `ipwho.is` → `ipapi.co` 自动回退，成功提示显示实际使用的服务
 - 新增“开启网络层并重测”，按需补充 IP 国家信号
 - 新增香港独立画像，繁体中文 / 香港时区不再归入中国大陆
 - 新增 Docker + Nginx VPS 一键部署脚本
 - Docker 部署已在 Debian 13 实机验证（构建、健康检查、四语言路由、404、重启）
 - 四语言文案、README 和隐私说明同步更新
-- 62 项单元测试、类型检查、Lint 和静态构建通过
+- 68 项单元测试、类型检查、Lint 和静态构建通过
 
 ### 未来计划
 

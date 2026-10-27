@@ -60,7 +60,7 @@ The result lists matched signals, weight contributions, the risk score, and cove
 
 ![CheckCC result with network layer](./docs/images/readme/detection-network-en.png)
 
-After "Turn on network and recheck", the browser queries `ipwho.is` directly, coverage becomes `11/11`, and the result adds IP country, IP address, location, ASN, and network organization. Only the country affects the score.
+After "Turn on network and recheck", the browser queries `ipwho.is` directly for your public IP. If the primary endpoint fails or is rate-limited, it automatically falls back to `ipapi.co`, and the notice shows which service was actually used. Coverage becomes `11/11`, and the result adds IP country, IP address, location, ASN, and network organization. Only the country affects the score.
 
 ### 🇭🇰 Hong Kong profile
 
@@ -110,7 +110,7 @@ Browser/app environment, device/system clues, and operating system are three bro
 
 - The score is the sum of evaluated contributions, capped at 100. Unevaluated signals neither raise nor lower it.
 - Coverage is shown separately. `100% (10/10)` means all ten weighted browser signals were evaluated; with the network layer on it becomes `11/11`.
-- When the network lookup fails, the country signal is shown as "lookup failed / not evaluated". Coverage drops, but the missing 20-point weight is not scaled up into risk.
+- When every network endpoint fails, the country signal is shown as "lookup failed / not evaluated". Coverage drops, but the missing 20-point weight is not scaled up into risk.
 - The country signal scores only when the IP country matches the target profile. With "Auto detect", an IP in mainland China, Hong Kong, Russia, or Iran scores.
 - Auto detection matches mainland China, Hong Kong, Russia, and Iran separately; Traditional Chinese, a Hong Kong timezone, and a `zh-HK` locale map to Hong Kong.
 - Manual targets are mainland China and Russia; Hong Kong and Iran are identified by auto detection.
@@ -153,7 +153,7 @@ With the network layer on, reports also contain the detected IP, country, ASN, a
 
 - Checking does not require a Claude login and does not read your account, password, cookies, or chat content.
 - The network layer is off by default; a default check uses browser signals only and sends no IP lookup to a third party.
-- When on, your browser sends an HTTPS request directly to the configured third-party IP geolocation service (`ipwho.is` by default). That service will see your public IP, which is required for the lookup. The request does not pass through this site's server, and this site does not receive, forward, or store the result.
+- When on, your browser sends an HTTPS request directly to the configured third-party IP geolocation service (`ipwho.is` by default, with an automatic fallback to `ipapi.co`). These services will see your public IP, which is required for the lookup. The request does not pass through this site's server, and this site does not receive, forward, or store the result. The success notice shows which service was actually used.
 - The request uses `credentials: "omit"` and `no-referrer`, so no cookies or referring page are sent.
 - Results are not uploaded automatically; reports are generated locally in the browser.
 - The current version does not load third-party analytics scripts.
@@ -286,9 +286,10 @@ The network layer reads these environment variables at build time; rebuild after
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | Set to `false` to remove the network layer entirely: no toggle, no IP lookup. `true` only makes the opt-in available; the first check still sends no IP request by default. |
-| `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | Must be an HTTPS, CORS-enabled endpoint that the browser can call directly. |
+| `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | Primary endpoint. Must be an HTTPS, CORS-enabled endpoint that the browser can call directly. |
+| `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://ipapi.co/json/` | Tried automatically when the primary endpoint fails, times out, or is rate-limited. Set it to an empty string to disable the fallback. The success notice shows which service was used. |
 
-The endpoint may return the native ipwho.is shape or this flat shape:
+The endpoint may return the native ipwho.is shape or the flat shape used by ipapi.co and many self-hosted endpoints:
 
 ```json
 {
@@ -306,14 +307,14 @@ The endpoint may return the native ipwho.is shape or this flat shape:
 }
 ```
 
-The lookup times out after 3500 ms (see `src/detection/config/services.ts`). Timeouts, CORS failures, malformed responses, and private/reserved addresses cause IP signals to be skipped with a failure notice; failures are not treated as zero risk and do not inflate the score.
+Each endpoint times out after 3500 ms (see `src/detection/config/services.ts`). On a timeout, CORS failure, malformed response, or private/reserved address, the lookup tries the fallback endpoint; only when every endpoint fails are IP signals skipped with a failure notice. Failures are not treated as zero risk and do not inflate the score.
 
 ## 🧪 Development and checks
 
 ```bash
 pnpm lint        # ESLint
 pnpm typecheck   # TypeScript
-pnpm test        # Vitest, 62 tests
+pnpm test        # Vitest, 68 tests
 pnpm check       # lint + typecheck + test
 pnpm build       # Static export
 ```
@@ -345,7 +346,7 @@ Hong Kong is not a manual target; it is identified by the auto profile. With the
 
 ### 3. Does a failed network lookup affect the score?
 
-No. The country signal is shown as "lookup failed / not evaluated", coverage drops, and the missing 20-point weight is not scaled up into risk.
+No. The lookup tries the primary endpoint and then the fallback; only after every endpoint fails is the country signal shown as "lookup failed / not evaluated". Coverage drops, and the missing 20-point weight is not scaled up into risk.
 
 ### 4. Can the result prove that an account is safe?
 
@@ -364,12 +365,13 @@ Yes. Set `NEXT_PUBLIC_IP_INTEL_ENABLED=false` at build time to remove the toggle
 ### Current version
 
 - Network layer is off by default; the first check sends no IP lookup.
+- Added an `ipwho.is` → `ipapi.co` automatic fallback; the success notice shows which service was actually used.
 - Added "Turn on network and recheck" for an opt-in IP-country signal.
 - Added a separate Hong Kong profile; Traditional Chinese / Hong Kong timezone no longer map to mainland China.
 - Added a Docker + Nginx one-command VPS deployment.
 - Verified the Docker deployment on Debian 13 (build, health check, locale routes, 404, restart).
 - Updated copy in all four languages, READMEs, and privacy notes.
-- 62 unit tests, type checking, lint, and static build pass.
+- 68 unit tests, type checking, lint, and static build pass.
 
 ### Roadmap
 

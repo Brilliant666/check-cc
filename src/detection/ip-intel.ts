@@ -18,8 +18,8 @@ export type NetworkIntel = {
 export type NetworkFailureReason = "timeout" | "network" | "invalid" | "private_ip";
 
 export type NetworkLookupResult =
-  | { status: "ok"; intel: NetworkIntel; provider: string }
-  | { status: "failed"; reason: NetworkFailureReason; provider: string };
+  | { status: "ok"; intel: NetworkIntel; provider: string; providers: string[] }
+  | { status: "failed"; reason: NetworkFailureReason; provider: string; providers: string[] };
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -72,7 +72,7 @@ export function parseIpIntelResponse(payload: unknown): NetworkIntel | null {
   return {
     ip,
     countryCode: countryCode ? countryCode.toUpperCase() : null,
-    countryName: asText(root.country) ?? asText(root.country_name) ?? null,
+    countryName: asText(root.country_name) ?? asText(root.country) ?? null,
     region: asText(root.region) ?? null,
     city: asText(root.city) ?? null,
     asn: normalizeAsn(asn),
@@ -80,18 +80,22 @@ export function parseIpIntelResponse(payload: unknown): NetworkIntel | null {
     isp: asText(root.isp) ?? asText(connection?.isp) ?? null,
     latitude: asNumber(root.latitude) ?? asNumber(root.lat),
     longitude: asNumber(root.longitude) ?? asNumber(root.lon) ?? asNumber(root.lng),
-    ipType: asText(root.type) ?? asText(root.ipType) ?? (ip.includes(":") ? "IPv6" : "IPv4"),
+    ipType: asText(root.type) ?? asText(root.ipType) ?? asText(root.version) ?? (ip.includes(":") ? "IPv6" : "IPv4"),
   };
 }
 
 export type NetworkLookupOptions = {
   endpoint: string;
+  fallbackEndpoint?: string;
   timeoutMs: number;
   fetchImpl?: typeof fetch;
 };
 
-export async function lookupNetworkIntel({ endpoint, timeoutMs, fetchImpl = fetch }: NetworkLookupOptions): Promise<NetworkLookupResult> {
-  const provider = providerHost(endpoint);
+type NetworkAttempt =
+  | { status: "ok"; intel: NetworkIntel }
+  | { status: "failed"; reason: NetworkFailureReason };
+
+async function fetchNetworkIntel(endpoint: string, timeoutMs: number, fetchImpl: typeof fetch): Promise<NetworkAttempt> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -102,20 +106,35 @@ export async function lookupNetworkIntel({ endpoint, timeoutMs, fetchImpl = fetc
       cache: "no-store",
       referrerPolicy: "no-referrer",
     });
-    if (!response.ok) return { status: "failed", reason: "network", provider };
+    if (!response.ok) return { status: "failed", reason: "network" };
     let payload: unknown;
     try {
       payload = await response.json();
     } catch {
-      return { status: "failed", reason: "invalid", provider };
+      return { status: "failed", reason: "invalid" };
     }
     const intel = parseIpIntelResponse(payload);
-    if (!intel) return { status: "failed", reason: "invalid", provider };
-    if (!isPublicIp(intel.ip)) return { status: "failed", reason: "private_ip", provider };
-    return { status: "ok", intel, provider };
+    if (!intel) return { status: "failed", reason: "invalid" };
+    if (!isPublicIp(intel.ip)) return { status: "failed", reason: "private_ip" };
+    return { status: "ok", intel };
   } catch {
-    return { status: "failed", reason: controller.signal.aborted ? "timeout" : "network", provider };
+    return { status: "failed", reason: controller.signal.aborted ? "timeout" : "network" };
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function lookupNetworkIntel({ endpoint, fallbackEndpoint = "", timeoutMs, fetchImpl = fetch }: NetworkLookupOptions): Promise<NetworkLookupResult> {
+  const configured = [endpoint, fallbackEndpoint].map((value) => value.trim()).filter(Boolean);
+  const endpoints = configured.filter((value, index) => configured.indexOf(value) === index);
+  const providers = endpoints.map(providerHost);
+  let reason: NetworkFailureReason = "network";
+
+  for (const current of endpoints) {
+    const attempt = await fetchNetworkIntel(current, timeoutMs, fetchImpl);
+    if (attempt.status === "ok") return { status: "ok", intel: attempt.intel, provider: providerHost(current), providers };
+    reason = attempt.reason;
+  }
+
+  return { status: "failed", reason, provider: providers[providers.length - 1] ?? providerHost(endpoint), providers };
 }

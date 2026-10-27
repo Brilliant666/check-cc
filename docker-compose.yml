@@ -8,6 +8,7 @@ services:
         NEXT_PUBLIC_REPO_URL: ${NEXT_PUBLIC_REPO_URL:-https://github.com/Brilliant666/check-cc}
         NEXT_PUBLIC_IP_INTEL_ENABLED: ${NEXT_PUBLIC_IP_INTEL_ENABLED:-true}
         NEXT_PUBLIC_IP_INTEL_ENDPOINT: ${NEXT_PUBLIC_IP_INTEL_ENDPOINT:-https://ipwho.is/}
+        NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT: ${NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT-https://ipapi.co/json/}
     image: checkcc:local
     container_name: checkcc
     restart: unless-stopped

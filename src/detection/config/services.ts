@@ -2,12 +2,16 @@
 import type { DetectionServiceConfig } from "./types";
 
 const ipIntelEndpoint = process.env.NEXT_PUBLIC_IP_INTEL_ENDPOINT?.trim() || "https://ipwho.is/";
+// An explicitly empty value disables the fallback; an unset value uses the default.
+const ipIntelFallbackEnv = process.env.NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT;
+const ipIntelFallbackEndpoint = ipIntelFallbackEnv === undefined ? "https://ipapi.co/json/" : ipIntelFallbackEnv.trim();
 const ipIntelEnabled = process.env.NEXT_PUBLIC_IP_INTEL_ENABLED?.trim().toLowerCase() !== "false";
 
 export const serviceConfig: Record<string, DetectionServiceConfig> = {
   ipIntel: {
     enabled: ipIntelEnabled,
     endpoint: ipIntelEndpoint,
+    fallbackEndpoint: ipIntelFallbackEndpoint,
     timeoutMs: 3500,
   },
 };

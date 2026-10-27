@@ -18,6 +18,7 @@ export type DetectorLocaleText = {
   network: {
     toggleLabel: string;
     toggleHint: string;
+    fallbackHint: string;
     idle: string;
     checking: string;
     success: string;
@@ -74,6 +75,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
     network: {
       toggleLabel: "同时检测网络出口（IP）",
       toggleHint: "浏览器直连 {provider} 查询。本站不经过服务器转发，但该服务会看到你的 IP。",
+      fallbackHint: "主服务失败或被限流时会自动尝试备用服务 {fallback}；两个服务都会看到你的 IP。",
       idle: "网络层：已开启。检测时浏览器将通过 {provider} 查询出口 IP；请求由浏览器直连第三方服务，本站不接收或存储查询结果。",
       checking: "网络层：正在通过 {provider} 查询出口 IP…",
       success: "网络层：已通过 {provider} 获取出口 IP。查询由浏览器直连第三方服务，本站不接收或存储该数据。",
@@ -128,6 +130,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
     network: {
       toggleLabel: "同時檢測網絡出口（IP）",
       toggleHint: "瀏覽器直連 {provider} 查詢。本站不經伺服器轉發，但該服務會看到你的 IP。",
+      fallbackHint: "主服務失敗或被限流時會自動嘗試備用服務 {fallback}；兩個服務都會看到你的 IP。",
       idle: "網絡層：已開啟。檢測時瀏覽器將透過 {provider} 查詢出口 IP；請求由瀏覽器直連第三方服務，本站不接收或儲存查詢結果。",
       checking: "網絡層：正在透過 {provider} 查詢出口 IP…",
       success: "網絡層：已透過 {provider} 取得出口 IP。查詢由瀏覽器直連第三方服務，本站不接收或儲存該資料。",
@@ -182,6 +185,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
     network: {
       toggleLabel: "Проверять сетевой выход (IP)",
       toggleHint: "Браузер обращается к {provider} напрямую. Сайт не проксирует запрос, но провайдер увидит ваш IP.",
+      fallbackHint: "Если основной сервис недоступен или ограничил запросы, браузер автоматически обратится к {fallback}; оба сервиса увидят ваш IP.",
       idle: "Сетевой слой: включён. При проверке браузер запросит публичный IP у {provider}; запрос идёт напрямую третьей стороне, сайт не получает и не хранит результат.",
       checking: "Сетевой слой: запрашиваем публичный IP через {provider}…",
       success: "Сетевой слой: публичный IP получен через {provider}. Запрос отправлен напрямую из браузера; сайт не получает и не хранит его.",
@@ -236,6 +240,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
     network: {
       toggleLabel: "Also check network egress (IP)",
       toggleHint: "Your browser queries {provider} directly. This site does not proxy the request, but the provider will see your IP.",
+      fallbackHint: "If the primary provider fails or rate-limits the request, the browser automatically tries {fallback}; both providers will see your IP.",
       idle: "Network layer: on. During the check your browser queries {provider} for your public IP; the request goes directly to the third party and this site does not receive or store the result.",
       checking: "Network layer: querying your public IP via {provider}…",
       success: "Network layer: public IP retrieved via {provider}. The request was sent directly from your browser; this site does not receive or store it.",

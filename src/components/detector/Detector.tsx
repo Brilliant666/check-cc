@@ -77,11 +77,14 @@ export function Detector({ locale = "zh" }: Props) {
   const ipIntelConfig = detectionConfig.services.ipIntel;
   const ipIntelAvailable = Boolean(ipIntelConfig?.enabled);
   const networkProvider = ipIntelConfig ? providerHost(ipIntelConfig.endpoint) : "";
+  const networkFallbackProvider = ipIntelConfig?.fallbackEndpoint ? providerHost(ipIntelConfig.fallbackEndpoint) : "";
+  const networkProviderChain = Array.from(new Set([networkProvider, networkFallbackProvider].filter(Boolean))).join(" → ");
   const [region, setRegion] = useState<RegionCode>("auto");
   const [browserResult, setBrowserResult] = useState<DetectionRunResult["browserResult"] | null>(null);
   const [networkIntel, setNetworkIntel] = useState<NetworkIntel | null>(null);
   const [networkEnabled, setNetworkEnabled] = useState(false);
   const [networkUsed, setNetworkUsed] = useState(false);
+  const [networkProviderLabel, setNetworkProviderLabel] = useState("");
   const [networkState, setNetworkState] = useState<"idle" | "checking" | "ok" | "failed" | "disabled">("disabled");
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -210,7 +213,8 @@ export function Detector({ locale = "zh" }: Props) {
         : networkState === "failed"
           ? detectorText.network.failed
           : detectorText.network.idle;
-  const networkNote = networkNoteTemplate.replaceAll("{provider}", networkProvider);
+  const networkNoteProvider = networkState === "ok" || networkState === "failed" ? networkProviderLabel || networkProviderChain : networkProvider;
+  const networkNote = networkNoteTemplate.replaceAll("{provider}", networkNoteProvider);
 
   useEffect(
     () => () => {
@@ -231,6 +235,7 @@ export function Detector({ locale = "zh" }: Props) {
     setLoading(true);
     setBrowserResult(null);
     setNetworkIntel(null);
+    setNetworkProviderLabel("");
     setProgress(0);
     setActiveSignal(0);
     window.dispatchEvent(new CustomEvent("checkcc-running", { detail: true }));
@@ -257,14 +262,16 @@ export function Detector({ locale = "zh" }: Props) {
         const progressAnimation = animateProgress(from, to, setProgress, setActiveSignal);
         if (index === 2 && useNetwork && ipIntelConfig) {
           const [lookup] = await Promise.all([
-            lookupNetworkIntel({ endpoint: ipIntelConfig.endpoint, timeoutMs: ipIntelConfig.timeoutMs }),
+            lookupNetworkIntel({ endpoint: ipIntelConfig.endpoint, fallbackEndpoint: ipIntelConfig.fallbackEndpoint, timeoutMs: ipIntelConfig.timeoutMs }),
             progressAnimation,
           ]);
           if (runTokenRef.current !== token) return;
           if (lookup.status === "ok") {
             setNetworkIntel(lookup.intel);
+            setNetworkProviderLabel(lookup.provider);
             setNetworkState("ok");
           } else {
+            setNetworkProviderLabel(lookup.providers.join(" → "));
             setNetworkState("failed");
           }
         } else {
@@ -303,6 +310,7 @@ export function Detector({ locale = "zh" }: Props) {
     setRegion(code);
     setBrowserResult(null);
     setNetworkIntel(null);
+    setNetworkProviderLabel("");
     setNetworkState("idle");
     setNetworkUsed(networkEnabled && ipIntelAvailable);
     setProgress(0);
@@ -369,7 +377,10 @@ export function Detector({ locale = "zh" }: Props) {
                   <input type="checkbox" checked={networkEnabled} disabled={loading} onChange={(event) => setNetworkEnabled(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[#d97757]" />
                   <span className="min-w-0">
                     <span className="block text-sm font-black text-[#0b1220]">{detectorText.network.toggleLabel}</span>
-                    <span className="mt-0.5 block text-xs font-semibold leading-5 text-stone-500">{detectorText.network.toggleHint.replaceAll("{provider}", networkProvider)}</span>
+                    <span className="mt-0.5 block text-xs font-semibold leading-5 text-stone-500">{detectorText.network.toggleHint.replaceAll("{provider}", networkProviderChain)}</span>
+                    {networkFallbackProvider && (
+                      <span className="mt-0.5 block text-xs font-semibold leading-5 text-stone-500">{detectorText.network.fallbackHint.replaceAll("{fallback}", networkFallbackProvider)}</span>
+                    )}
                   </span>
                 </label>
               )}
