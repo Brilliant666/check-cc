@@ -38,7 +38,7 @@
 - 🌏 **四语言界面**：简体中文、繁体中文、俄文、英文，各自有独立 URL 和 `html lang`。
 - 🛡️ **隐私优先**：不登录 Claude，不读取账号敏感内容，不接入第三方访问统计脚本。
 - 📦 **静态导出**：Next.js 静态导出到 `out/`，可部署到任意静态托管，无 Node 服务端运行时。
-- 🐳 **VPS 一键部署**：Docker Compose + Nginx，默认监听 8080，域名和 HTTPS 由你自行接管。
+- 🐳 **VPS 一键部署**：Docker Compose + Nginx，默认监听 8080；绑定地址、端口、域名和 HTTPS 按实际环境配置。
 
 > Maintained by **Brilliant666**，基于 yacuo/check-cc 的 MIT 许可代码。
 
@@ -240,25 +240,27 @@ pnpm preview    # 在 http://localhost:4173 预览 out/
 
 ### 方式一：VPS 一键部署（Docker + Nginx，推荐）
 
-适用于 Ubuntu / Debian，需要 Docker Engine 20.10+（建议 24+）和 Docker Compose v2：
+适用于 Ubuntu / Debian，需要 Docker Engine 20.10+（建议 24+）、Docker Compose v2 和约 2 GB 可用磁盘。Docker 需按官方文档提前安装，脚本不会自动安装。
 
 ```bash
 git clone https://github.com/Brilliant666/check-cc.git
 cd check-cc
 cp .env.example .env
-# 编辑 .env；有域名时设置 NEXT_PUBLIC_SITE_URL，本地验收可先留空
+# 按实际拓扑编辑 .env
 ./deploy/deploy.sh
 ```
 
-脚本会构建静态站点、启动 Nginx 容器并等待健康检查通过，默认监听 `0.0.0.0:8080`。域名、HTTPS 和反向代理由你自行配置；如果前面已有 Nginx / Caddy，建议改为只监听本机：
+部署前先确定三件事：
 
-```bash
-CHECKCC_BIND=127.0.0.1 ./deploy/deploy.sh
-```
+- **前面有没有反向代理**：已有 Nginx / Caddy / Traefik 时设 `CHECKCC_BIND=127.0.0.1`，由代理转发到 `127.0.0.1:<CHECKCC_PORT>`；
+- **端口是否空闲**：`8080` 只是默认值，被占用时改 `CHECKCC_PORT`；容器内部始终监听 80；
+- **有没有正式域名**：有则设置 `NEXT_PUBLIC_SITE_URL=https://你的域名`，否则 canonical、hreflang 和 sitemap 不生成。
 
-完整的 VPS 部署说明、反向代理示例和更新命令见 [deploy/README.md](./deploy/README.md)。
+`NEXT_PUBLIC_*` 在构建时生效，修改后必须重新构建；`CHECKCC_BIND` 和 `CHECKCC_PORT` 在启动时生效。默认监听 `0.0.0.0:8080`，只建议临时使用；正式环境应只暴露 80/443，并由反向代理接管 HTTPS。
 
-该流程已在 Debian 13（2 GB 内存 + 2 GB swap）实机验证 Docker Engine 29.9.2 / Compose v5.6.1：构建、健康检查、四语言路由、404 和容器重启均通过。低内存主机建议先按部署文档添加 swap。
+常见坑位：Docker 未安装或未启动、8080 被占用、低内存构建 OOM、改 `.env` 后未重新构建、反向代理 502、`/en` 少了末尾斜杠、网络层失败被误判为服务器故障。完整排错表、SSH 隧道、反向代理、更新回滚和清理见 [deploy/README.md](./deploy/README.md)。
+
+参考验证环境为 Debian 13（2 GB 内存 + 2 GB swap）、Docker Engine 29.9.2 / Compose v5.6.1；这只是验证记录，不是最低配置或强制版本。
 
 ### 方式二：手动静态托管
 
@@ -372,6 +374,7 @@ GitHub Actions 会在 push 和 pull request 时执行 lint、类型检查、单�
 - 新增香港独立画像，繁体中文 / 香港时区不再归入中国大陆
 - 新增 Docker + Nginx VPS 一键部署脚本
 - Docker 部署已在 Debian 13 实机验证（构建、健康检查、四语言路由、404、重启）
+- 部署文档改为按拓扑选择绑定地址和端口，补充反向代理、低内存、更新回滚与常见坑位排查
 - 四语言文案、README 和隐私说明同步更新
 - 68 项单元测试、类型检查、Lint 和静态构建通过
 

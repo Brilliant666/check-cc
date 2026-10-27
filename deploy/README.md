@@ -1,14 +1,37 @@
 # CheckCC VPS 部署（Docker + Nginx）
 
-面向 Ubuntu / Debian，使用 Docker Compose 构建静态站点，并由 Nginx 容器提供服务。脚本只负责构建、启动和健康检查；域名、HTTPS 和反向代理由服务器所有者自行配置。
+CheckCC 是纯静态站点：构建产物是 `out/`，由 Nginx 容器提供静态文件；没有 Node 服务端运行时，也没有数据库。本文面向在 Linux 云服务器上自建站点，脚本只负责构建、启动和健康检查。
 
-## 前置条件
+> 域名、HTTPS、反向代理、云安全组和主机防火墙都需要你按实际环境配置。脚本不会自动安装 Docker，也不会修改系统防火墙。
+>
+> 已经有 Docker 和反向代理？直接看 [3. 一键部署](#3-一键部署)。首次部署建议先读第 1、2 节。
 
-- Ubuntu 22.04 / 24.04 或 Debian 12 / 13
-- Docker Engine 20.10+（建议 24+，实测 29.9.2），Docker Compose v2+（实测 v5.6.1）
-- 一个可用的域名（可选，但建议配置）
+## 1. 先选择部署拓扑
 
-安装 Docker：按官方文档操作，不要在生产服务器上直接执行来源不明的安装脚本。
+`CHECKCC_PORT=8080` 只是项目默认值，不是必须使用 8080；`CHECKCC_BIND` 也不是固定为 `127.0.0.1`。按实际拓扑选择：
+
+| 场景 | `CHECKCC_BIND` | 外部访问方式 | 建议 |
+| --- | --- | --- | --- |
+| 已有 Nginx / Caddy / Traefik | `127.0.0.1` | 反向代理到 `127.0.0.1:<CHECKCC_PORT>` | 推荐；只暴露 80/443 |
+| 没有反向代理，仅本机验收 | `127.0.0.1` | SSH 隧道 | 推荐用于首次验收，不暴露公网端口 |
+| 没有反向代理，临时公网访问 | `0.0.0.0` 或指定网卡 IP | `http://<服务器IP>:<CHECKCC_PORT>` | 仅临时使用；安全组限制来源，正式使用前补 TLS |
+| 使用 Cloudflare Pages / Netlify / Vercel 等 | 不使用 Docker | 直接托管 `out/` | 见主 README 的“手动静态托管” |
+
+如果反向代理本身也运行在 Docker 容器里，`127.0.0.1` 指的是代理容器自己，不是宿主机。此时应把两个容器放到同一 Docker 网络，代理使用服务名访问；或者让 CheckCC 绑定宿主机地址，再按 Docker 网络实际可达的地址访问。
+
+## 2. 前置检查
+
+### 2.1 系统与 Docker
+
+本项目在 Ubuntu / Debian 上验证；其他 Linux 发行版只要 Docker 和 Compose 可用，通常也可以部署。
+
+需要：
+
+- Docker Engine 20.10+（建议 24+）
+- Docker Compose v2+
+- 至少约 2 GB 可用磁盘给镜像和构建缓存；内存不足时按 2.2 加 swap
+
+安装 Docker 请按官方文档操作，不要在生产服务器上直接执行来源不明的安装脚本：
 
 - Ubuntu: <https://docs.docker.com/engine/install/ubuntu/>
 - Debian: <https://docs.docker.com/engine/install/debian/>
@@ -25,7 +48,17 @@ sudo systemctl enable --now docker
 sudo usermod -aG docker "$USER"
 ```
 
-### 低内存主机
+验证：
+
+```bash
+docker --version
+docker compose version
+docker info >/dev/null && echo "Docker OK"
+```
+
+如果 `docker compose` 不存在，安装 Compose 插件（Debian/Ubuntu 的包名通常是 `docker-compose-plugin`），不要依赖旧的 `docker-compose` v1。
+
+### 2.2 低内存主机
 
 Next.js 构建阶段内存占用较高。2 GB 内存及以下的服务器建议先添加 2 GB swap（已有 swap 可跳过；执行前确认 `/etc/fstab` 中还没有 `/swapfile` 记录）：
 
@@ -37,17 +70,36 @@ sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 ```
 
-构建完成后 swap 可以保留；如果只是临时使用，也可在确认没有其他用途后关闭并删除。
+检查内存和磁盘：
 
-## 一键部署
+```bash
+free -h
+df -h /
+```
+
+构建完成后 swap 可以保留；如果只是临时使用，也可在确认没有其他用途后关闭并删除。磁盘只剩几百 MB 时先扩容或清理，不要直接开始构建。
+
+### 2.3 端口和占用检查
+
+```bash
+ss -lntp | grep -E ':(80|443|8080)\b' || true
+```
+
+`8080` 只是默认端口。被占用时换一个空闲端口（例如 `18081`），不要直接 kill 不认识的进程。换端口后记得同步修改反向代理配置。
+
+## 3. 一键部署
+
+首次部署：
 
 ```bash
 git clone https://github.com/Brilliant666/check-cc.git
 cd check-cc
 cp .env.example .env
-# 编辑 .env；有域名时填写 NEXT_PUBLIC_SITE_URL，本地验收可先留空
+# 编辑 .env：至少确认 NEXT_PUBLIC_SITE_URL、CHECKCC_BIND、CHECKCC_PORT
 ./deploy/deploy.sh
 ```
+
+> 只有首次部署才执行 `cp`。更新已有站点时不要重复复制 `.env.example`，否则会覆盖现有配置。
 
 脚本会：
 
@@ -57,33 +109,49 @@ cp .env.example .env
 4. 等待容器健康检查通过；
 5. 输出访问地址、日志和重启命令。
 
-默认监听 `0.0.0.0:8080`。如果前面还有 Nginx / Caddy / Traefik，建议改成只监听本机：
+脚本不会安装 Docker，也不会配置域名、TLS、反向代理或系统防火墙。
 
-```bash
-CHECKCC_BIND=127.0.0.1 CHECKCC_PORT=8080 ./deploy/deploy.sh
+反向代理场景的 `.env` 最小示例：
+
+```dotenv
+NEXT_PUBLIC_SITE_URL=https://check.example.com
+CHECKCC_BIND=127.0.0.1
+CHECKCC_PORT=8080
 ```
 
-命令行传入的变量优先于 `.env`。脚本会从 Compose 的实际端口映射读取最终监听地址，避免配置与实际不一致。
+`NEXT_PUBLIC_SITE_URL` 是站点对外地址，不是服务器内网地址。没有域名时可以先留空，等域名和 TLS 配好后再填并重新构建。
 
-还没有反向代理时也可以先这样绑定，通过 SSH 隧道验收，避免把无 TLS 的 8080 端口直接长期暴露在公网。
+命令行覆盖示例（`18081` 只是示例，换成任意空闲端口）：
 
-## 配置项
+```bash
+CHECKCC_BIND=127.0.0.1 CHECKCC_PORT=18081 ./deploy/deploy.sh
+```
 
-`NEXT_PUBLIC_*` 在构建时读取，修改后需要重新执行 `./deploy/deploy.sh`；`CHECKCC_BIND` 和 `CHECKCC_PORT` 在启动时读取，重新执行脚本或 `docker compose up -d` 即可生效。
+命令行变量优先于 `.env`。修改 `NEXT_PUBLIC_*` 后必须重新构建；只改 `.env` 里的 `CHECKCC_BIND` / `CHECKCC_PORT` 时，执行 `docker compose up -d` 即可；如果使用命令行覆盖，重新执行 `./deploy/deploy.sh`。
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `NEXT_PUBLIC_SITE_URL` | 空 | 站点公开地址，例如 `https://check.example.com`。设置后才生成 canonical、hreflang、OG URL 和 sitemap |
-| `NEXT_PUBLIC_REPO_URL` | 本仓库 | 页头、页脚使用的 GitHub 地址 |
-| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | `false` 时彻底关闭网络层 |
-| `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | 浏览器直连的主 CORS IP 查询接口 |
-| `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://ipapi.co/json/` | 主接口失败、超时或被限流时自动尝试；设为空字符串可关闭回退 |
-| `CHECKCC_BIND` | `0.0.0.0` | 宿主机监听地址 |
-| `CHECKCC_PORT` | `8080` | 宿主机端口 |
+## 4. 配置项
 
-## 反向代理示例
+| 变量 | 默认值 | 生效时机 | 说明 |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | 空 | 构建时 | 站点对外地址，例如 `https://check.example.com`。设置后才生成 canonical、hreflang、OG URL 和 sitemap；为空时这些字段不输出 |
+| `NEXT_PUBLIC_REPO_URL` | 本仓库 | 构建时 | 页头、页脚和源码入口使用的 GitHub 地址 |
+| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | 构建时 | `false` 时彻底关闭网络层，界面不显示开关，也不发送 IP 查询 |
+| `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | 构建时 | 浏览器直连的主 CORS IP 查询接口，必须是 HTTPS |
+| `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://ipapi.co/json/` | 构建时 | 主接口失败、超时或被限流时自动尝试；设为空字符串可关闭回退。成功提示会显示实际使用的服务 |
+| `CHECKCC_BIND` | `0.0.0.0` | 启动时 | 宿主机监听地址；按上面的拓扑选择 `127.0.0.1`、`0.0.0.0` 或指定网卡 IP |
+| `CHECKCC_PORT` | `8080` | 启动时 | 宿主机端口；可以改成任意空闲端口，容器内部始终监听 80 |
 
-Nginx（宿主机）：
+说明：
+
+- `.env` 从仓库根目录读取；请从仓库根目录执行 `./deploy/deploy.sh`。
+- `.env` 不应提交到 Git，也不要打进镜像。
+- `NEXT_PUBLIC_*` 会写入静态文件，改完后必须重新构建。
+- `NEXT_PUBLIC_SITE_URL` 末尾的 `/` 会被自动去掉；正式站点建议使用 `https://`。
+- `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT=` 留空表示只使用主接口。
+
+## 5. 反向代理、HTTPS 和防火墙
+
+Nginx（宿主机）示例，`proxy_pass` 的端口改成你的 `CHECKCC_PORT`：
 
 ```nginx
 server {
@@ -100,70 +168,149 @@ server {
 }
 ```
 
-用 Caddy 更简单，自动签发 HTTPS：
+Caddy 示例，Caddy 会自动申请 HTTPS 证书：
 
 ```caddyfile
 check.example.com {
+    # 端口改成 CHECKCC_PORT
     reverse_proxy 127.0.0.1:8080
 }
 ```
 
-## 常用命令
+只放行 80/443；不要长期放行 8080。云安全组和主机防火墙都要检查。
+
+如果只想在服务器本机验收，可以保持 `127.0.0.1` 绑定并建立 SSH 隧道：
 
 ```bash
-docker compose logs -f checkcc    # 查看日志
-docker compose up -d --build      # 重新构建并启动
-docker compose restart checkcc    # 重启
-docker compose down               # 停止并删除容器
+ssh -N -L <本地端口>:127.0.0.1:<CHECKCC_PORT> <用户>@<服务器>
+# 浏览器打开 http://127.0.0.1:<本地端口>
 ```
 
-## 更新版本
+本地端口和服务器端口可以不同；本地端口被占用就换一个。如果 `CHECKCC_BIND` 绑定的是特定网卡 IP，隧道目标写那个 IP。
+
+## 6. 验证
+
+在服务器上执行，`PORT` 改成 `.env` 里的 `CHECKCC_PORT`：
+
+```bash
+PORT="$(sed -n 's/^CHECKCC_PORT=//p' .env | tail -n 1)"
+PORT="${PORT:-8080}"
+BASE="http://127.0.0.1:${PORT}"   # 绑定特定网卡 IP 时改成该 IP
+
+curl -fsS "$BASE/healthz"
+for path in / /en/ /hong-kong/ /russia/ /no-such-page/; do
+  curl -s -o /dev/null -w "$path %{http_code}\n" "$BASE$path"
+done
+curl -sI "$BASE/" | sed -n '1,12p'
+docker compose ps
+```
+
+预期：
+
+- `/healthz` 返回 `ok`；
+- `/`、`/en/`、`/hong-kong/`、`/russia/` 返回 200，未知路径返回 404；
+- HTML 返回 `Cache-Control: no-cache`，`/_next/static/` 资源长期缓存，并启用 gzip；
+- `docker compose ps` 显示 `healthy`；
+- 重启后恢复健康：
+
+```bash
+docker restart checkcc
+docker inspect -f '{{.State.Health.Status}}' checkcc
+```
+
+浏览器验收时注意：
+
+- 网络层默认关闭；首次检测只使用浏览器信号，不发送 IP 查询。
+- 点击“开启网络层并重测”后，浏览器会先请求 `ipwho.is`；失败或被限流时自动回退到 `ipapi.co`，成功提示会显示实际使用的服务。
+- 两个接口都失败时才会跳过 IP 信号；覆盖率下降，但风险分不会被抬高。
+- IP 查询由访客浏览器直接发起，Nginx 访问日志里看不到第三方 IP 查询请求，这是正常的。
+
+## 7. 更新、回滚和清理
+
+更新版本：
 
 ```bash
 git pull
 ./deploy/deploy.sh
 ```
 
-## 验证
+`.env` 会保留；项目没有数据库和持久化卷，更新只会替换静态文件和容器，通常只有很短的停机时间。更新前可以用 `git log -1` 确认版本。
+
+需要回滚时，先确认工作区没有未提交修改，再切换到目标提交并重新构建：
 
 ```bash
-curl -s http://127.0.0.1:8080/healthz
-for path in / /en/ /hong-kong/ /russia/ /no-such-page/; do
-  curl -s -o /dev/null -w "$path %{http_code}\n" "http://127.0.0.1:8080$path"
-done
-curl -sI http://127.0.0.1:8080/ | sed -n '1,12p'
+git status
+git checkout <commit>
+./deploy/deploy.sh
+# 回滚完成后切回主分支，并重新构建
+git checkout main
+./deploy/deploy.sh
 ```
 
-预期：
-
-- `/healthz` 返回 `ok`；
-- 四个语言页面返回 200，未知路径返回 404；
-- HTML 返回 `Cache-Control: no-cache`，`/_next/static/` 资源为长期缓存，并启用 gzip；
-- `docker restart checkcc` 后容器恢复 `healthy`。
-
-如果只想在本机验收，可以保持 `127.0.0.1` 绑定并建立 SSH 隧道：
+清理构建资源前先确认没有其他服务依赖这些镜像：
 
 ```bash
-ssh -N -L 18080:127.0.0.1:8080 user@your-server
-# 浏览器访问 http://127.0.0.1:18080
+docker system df
+docker image prune
+docker builder prune
 ```
 
-如果使用域名和 HTTPS，把地址换成 `https://check.example.com`。
+不要在没有确认的情况下使用 `docker system prune -a`，它可能影响同一台服务器上的其他项目。
 
-## 实机验证
+## 8. 常见坑位与排查
 
-2026-10 在 Debian 13（2 GB 内存 + 2 GB swap）上使用 Docker Engine 29.9.2 / Docker Compose v5.6.1 完成构建和验收：
+下面的 `PORT` 从 `.env` 读取；没有设置时按默认 `8080` 处理。
 
-- 容器健康检查通过，重启后恢复 `healthy`；
-- `/`、`/en/`、`/hong-kong/`、`/russia/` 返回 200，`html lang` 分别为 `zh-CN`、`en`、`zh-HK`、`ru-RU`；未知路径返回 404；
+先跑这三条，通常能定位大部分问题：
+
+```bash
+PORT="$(sed -n 's/^CHECKCC_PORT=//p' .env | tail -n 1)"
+PORT="${PORT:-8080}"
+docker compose ps
+docker compose logs --tail=100 checkcc
+curl -v "http://127.0.0.1:${PORT}/healthz"
+```
+
+| 现象 | 常见原因 | 处理 |
+| --- | --- | --- |
+| `docker: command not found`、`Cannot connect to the Docker daemon` 或权限不足 | Docker 未安装、未启动，或当前用户不在 `docker` 组 | 按官方文档安装；`sudo systemctl enable --now docker`；`sudo usermod -aG docker "$USER"` 后重新登录 |
+| `port is already allocated` 或 `address already in use` | `CHECKCC_PORT` 被其他程序占用 | `ss -lntp \| grep ":${PORT}"` 查占用；换 `CHECKCC_PORT`；同步修改反向代理 |
+| 构建时进程被杀、退出码 137 | 内存不足 | 按 2.2 加 swap，或换更大内存的机器；`dmesg \| tail` 查看 OOM 记录 |
+| `no space left on device` | 磁盘或 Docker 数据目录满了 | `df -h`、`docker system df`；清理未使用镜像/构建缓存，或扩容磁盘 |
+| `docker compose: command not found` | 只装了 Docker Engine，没有 Compose v2 插件 | 安装 `docker-compose-plugin`；用 `docker compose version` 验证 |
+| 修改 `.env` 后页面没变化 | 改的是 `NEXT_PUBLIC_*`（构建时变量），或没有在仓库根目录执行 | 重新执行 `./deploy/deploy.sh`；用 `docker compose config` 检查实际构建参数；命令行变量会覆盖 `.env` |
+| canonical、hreflang 或 sitemap 为空/仍是旧域名 | `NEXT_PUBLIC_SITE_URL` 为空，或修改后没有重新构建 | 填写正确的公网地址（建议 HTTPS），重新构建 |
+| 反向代理返回 502 | 代理目标端口不对、CheckCC 容器不健康，或代理在另一个容器里访问了错误的 `127.0.0.1` | `docker compose ps`、`docker compose logs`；直接 curl 宿主机端口；容器代理要用同一 Docker 网络的服务名 |
+| `/en` 或 `/hong-kong` 返回 404 | 访问地址缺少末尾 `/`，或静态托管没有启用目录重定向 | 用 `/en/`、`/hong-kong/` 访问；直接访问宿主机端口对比；静态托管需保留目录式路由 |
+| 网络层一直失败 | 第三方接口被浏览器网络、CORS 或限流拦截，不是服务器故障 | 看浏览器控制台；`ipwho.is` 失败会自动尝试 `ipapi.co`；两个都失败时页面会跳过 IP 信号，Nginx 日志不会有帮助 |
+| 容器一直是 `unhealthy` | 容器启动失败、端口未监听或健康检查命令失败 | `docker compose logs --tail=100 checkcc`；`docker inspect checkcc`；确认容器内 80 端口正常 |
+| SSH 隧道连接失败 | 本地端口被占用、服务器端口写错，或 SSH 会话已断开 | 换一个本地端口；确认 `CHECKCC_PORT`；保持 SSH 会话，必要时用 `-v` 查看原因 |
+| `./deploy/deploy.sh: Permission denied` | 文件没有执行权限（常见于下载 zip 后） | `chmod +x deploy/deploy.sh` 后重试 |
+
+不要做的事：
+
+- 不要把 8080 直接长期暴露公网；至少限制来源，正式环境使用 80/443 和 TLS。
+- 不要在运行中的容器里改文件；改源码或 `.env` 后重新构建。
+- 不要用 `next start` 启动本项目；它是静态导出，没有 Node 服务端。
+- 不要把 `.env` 提交到 Git。
+- 不要假设 8080 一定空闲，也不要把文档里的示例端口直接当成你的生产端口。
+
+## 9. 参考验证记录
+
+以下仅记录一次实际验证，不是最低配置，也不限制其他受 Docker 支持的发行版：
+
+- Debian 13，2 GB 内存 + 2 GB swap；
+- Docker Engine 29.9.2，Docker Compose v5.6.1；
+- 构建、健康检查、`/`、`/en/`、`/hong-kong/`、`/russia/`、404 和容器重启通过；
 - gzip、静态资源长期缓存、HTML no-cache 和基础安全头生效；
-- 浏览器检测默认不发起 IP 请求；点击“开启网络层并重测”后只发出一次查询，第三方返回 429 时页面按设计跳过网络信号且不抬高分数。
+- 浏览器默认不发起 IP 查询；开启网络层后，`ipwho.is` 返回 429 时自动回退 `ipapi.co`，两个接口都失败时跳过网络信号且不抬高分数。
 
-本次验收未包含域名、TLS 和公网暴露。`NEXT_PUBLIC_SITE_URL` 为空时 `/sitemap.xml` 是空列表，canonical、hreflang 和 OG URL 不输出；设置并重新构建后生成。
+版本号只是这次验证的环境记录；请按 Docker 官方支持范围选择版本。本次验证未包含域名、TLS 和公网暴露配置。
 
-## 说明
+## 10. 说明
 
 - 本项目是纯静态站点，容器内没有 Node 服务端运行时，也没有数据库。
 - IP 查询由访客浏览器直接请求第三方服务；服务器只托管静态文件。
 - 页面中的站点 URL、canonical 和 sitemap 在构建时写入；换域名后需要重新构建。
 - 容器以 Nginx 默认用户运行，未挂载宿主机目录，不需要额外文件权限。
+- 如果不想使用 Docker，也可以把 `out/` 部署到任意静态托管，参见主 README 的“手动静态托管”。

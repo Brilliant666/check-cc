@@ -38,7 +38,7 @@ This repository is a community fork of [yacuo/check-cc](https://github.com/yacuo
 - 🌏 **Four UI languages**: Simplified Chinese, Traditional Chinese, Russian, and English, each with its own URL and `html lang`.
 - 🛡️ **Privacy-first**: no Claude login, no account content, and no third-party analytics scripts.
 - 📦 **Static export**: Next.js exports to `out/`, deployable to any static host with no Node server runtime.
-- 🐳 **One-command VPS deploy**: Docker Compose + Nginx, listening on 8080 by default; domain and TLS are left to you.
+- 🐳 **One-command VPS deploy**: Docker Compose + Nginx, listening on 8080 by default; bind address, port, domain, and TLS are configured for your environment.
 
 > Maintained by **Brilliant666**, based on MIT-licensed code from yacuo/check-cc.
 
@@ -238,25 +238,27 @@ There is no Node server runtime, so do not use `next start`.
 
 ### Option 1: One-command VPS deploy (Docker + Nginx, recommended)
 
-For Ubuntu / Debian with Docker Engine 20.10+ (24+ recommended) and Docker Compose v2:
+For Ubuntu / Debian with Docker Engine 20.10+ (24+ recommended), Docker Compose v2, and about 2 GB of free disk. Install Docker from the official docs first; the script does not install it.
 
 ```bash
 git clone https://github.com/Brilliant666/check-cc.git
 cd check-cc
 cp .env.example .env
-# edit .env; set NEXT_PUBLIC_SITE_URL when you have a domain, or leave it empty for local validation
+# edit .env for your topology
 ./deploy/deploy.sh
 ```
 
-The script builds the static site, starts an Nginx container, and waits for the health check. It listens on `0.0.0.0:8080` by default. Domain, TLS, and the outer reverse proxy are left to you; if Nginx or Caddy already runs on the host, bind to localhost instead:
+Decide three things before deploying:
 
-```bash
-CHECKCC_BIND=127.0.0.1 ./deploy/deploy.sh
-```
+- **Is there a reverse proxy?** With Nginx / Caddy / Traefik already on the host, set `CHECKCC_BIND=127.0.0.1` and proxy to `127.0.0.1:<CHECKCC_PORT>`.
+- **Is the port free?** `8080` is only a default. If it is taken, change `CHECKCC_PORT`; the container always listens on 80 internally.
+- **Is there a public domain?** Set `NEXT_PUBLIC_SITE_URL=https://your-domain`; otherwise canonical, hreflang, and sitemap entries are omitted.
 
-See [deploy/README.md](./deploy/README.md) for the full VPS guide, reverse-proxy examples, and update commands.
+`NEXT_PUBLIC_*` is read at build time and requires a rebuild after changes; `CHECKCC_BIND` and `CHECKCC_PORT` apply at startup. Listening on `0.0.0.0:8080` is intended for temporary use; expose only 80/443 in production and terminate HTTPS at the reverse proxy.
 
-This flow has been verified on Debian 13 (2 GB RAM + 2 GB swap) with Docker Engine 29.9.2 / Compose v5.6.1: build, health check, all four locale routes, 404 handling, and container restart passed. On low-memory hosts, add swap first as described in the deploy guide.
+Common pitfalls: Docker missing or not running, port 8080 already allocated, OOM during a low-memory build, `.env` changes without a rebuild, reverse-proxy 502s, `/en` without the trailing slash, and network-layer failures mistaken for server faults. See [deploy/README.md](./deploy/README.md) for the full troubleshooting table, SSH tunnel, reverse-proxy examples, updates, rollback, and cleanup.
+
+Reference verification environment: Debian 13 (2 GB RAM + 2 GB swap), Docker Engine 29.9.2 / Compose v5.6.1. This is a test record, not a minimum requirement or a pinned version.
 
 ### Option 2: Manual static hosting
 
@@ -370,6 +372,7 @@ Yes. Set `NEXT_PUBLIC_IP_INTEL_ENABLED=false` at build time to remove the toggle
 - Added a separate Hong Kong profile; Traditional Chinese / Hong Kong timezone no longer map to mainland China.
 - Added a Docker + Nginx one-command VPS deployment.
 - Verified the Docker deployment on Debian 13 (build, health check, locale routes, 404, restart).
+- Reworked the deployment guide around topology choices, ports, reverse proxies, low-memory hosts, updates, rollback, and troubleshooting.
 - Updated copy in all four languages, READMEs, and privacy notes.
 - 68 unit tests, type checking, lint, and static build pass.
 
