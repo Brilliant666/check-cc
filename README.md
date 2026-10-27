@@ -246,7 +246,7 @@ pnpm preview    # 在 http://localhost:4173 预览 out/
 git clone https://github.com/Brilliant666/check-cc.git
 cd check-cc
 cp .env.example .env
-# 编辑 .env，至少设置 NEXT_PUBLIC_SITE_URL
+# 编辑 .env；有域名时设置 NEXT_PUBLIC_SITE_URL，本地验收可先留空
 ./deploy/deploy.sh
 ```
 
@@ -257,6 +257,8 @@ CHECKCC_BIND=127.0.0.1 ./deploy/deploy.sh
 ```
 
 完整的 VPS 部署说明、反向代理示例和更新命令见 [deploy/README.md](./deploy/README.md)。
+
+该流程已在 Debian 13（2 GB 内存 + 2 GB swap）实机验证 Docker Engine 29.9.2 / Compose v5.6.1：构建、健康检查、四语言路由、404 和容器重启均通过。低内存主机建议先按部署文档添加 swap。
 
 ### 方式二：手动静态托管
 
@@ -367,6 +369,7 @@ GitHub Actions 会在 push 和 pull request 时执行 lint、类型检查、单�
 - 新增“开启网络层并重测”，按需补充 IP 国家信号
 - 新增香港独立画像，繁体中文 / 香港时区不再归入中国大陆
 - 新增 Docker + Nginx VPS 一键部署脚本
+- Docker 部署已在 Debian 13 实机验证（构建、健康检查、四语言路由、404、重启）
 - 四语言文案、README 和隐私说明同步更新
 - 62 项单元测试、类型检查、Lint 和静态构建通过
 

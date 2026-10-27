@@ -4,8 +4,8 @@
 
 ## 前置条件
 
-- Ubuntu 22.04 / 24.04 或 Debian 12
-- Docker Engine 20.10+（建议 24+），Docker Compose v2
+- Ubuntu 22.04 / 24.04 或 Debian 12 / 13
+- Docker Engine 20.10+（建议 24+，实测 29.9.2），Docker Compose v2+（实测 v5.6.1）
 - 一个可用的域名（可选，但建议配置）
 
 安装 Docker：按官方文档操作，不要在生产服务器上直接执行来源不明的安装脚本。
@@ -25,13 +25,27 @@ sudo systemctl enable --now docker
 sudo usermod -aG docker "$USER"
 ```
 
+### 低内存主机
+
+Next.js 构建阶段内存占用较高。2 GB 内存及以下的服务器建议先添加 2 GB swap（已有 swap 可跳过；执行前确认 `/etc/fstab` 中还没有 `/swapfile` 记录）：
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+构建完成后 swap 可以保留；如果只是临时使用，也可在确认没有其他用途后关闭并删除。
+
 ## 一键部署
 
 ```bash
 git clone https://github.com/Brilliant666/check-cc.git
 cd check-cc
 cp .env.example .env
-# 编辑 .env，至少填写 NEXT_PUBLIC_SITE_URL
+# 编辑 .env；有域名时填写 NEXT_PUBLIC_SITE_URL，本地验收可先留空
 ./deploy/deploy.sh
 ```
 
@@ -50,6 +64,8 @@ CHECKCC_BIND=127.0.0.1 CHECKCC_PORT=8080 ./deploy/deploy.sh
 ```
 
 命令行传入的变量优先于 `.env`。脚本会从 Compose 的实际端口映射读取最终监听地址，避免配置与实际不一致。
+
+还没有反向代理时也可以先这样绑定，通过 SSH 隧道验收，避免把无 TLS 的 8080 端口直接长期暴露在公网。
 
 ## 配置项
 
@@ -110,12 +126,39 @@ git pull
 ## 验证
 
 ```bash
-curl -I http://127.0.0.1:8080/
-curl http://127.0.0.1:8080/healthz
-curl -I http://127.0.0.1:8080/hong-kong/
+curl -s http://127.0.0.1:8080/healthz
+for path in / /en/ /hong-kong/ /russia/ /no-such-page/; do
+  curl -s -o /dev/null -w "$path %{http_code}\n" "http://127.0.0.1:8080$path"
+done
+curl -sI http://127.0.0.1:8080/ | sed -n '1,12p'
 ```
 
-如果使用域名和 HTTPS，再把地址换成 `https://check.example.com`。
+预期：
+
+- `/healthz` 返回 `ok`；
+- 四个语言页面返回 200，未知路径返回 404；
+- HTML 返回 `Cache-Control: no-cache`，`/_next/static/` 资源为长期缓存，并启用 gzip；
+- `docker restart checkcc` 后容器恢复 `healthy`。
+
+如果只想在本机验收，可以保持 `127.0.0.1` 绑定并建立 SSH 隧道：
+
+```bash
+ssh -N -L 18080:127.0.0.1:8080 user@your-server
+# 浏览器访问 http://127.0.0.1:18080
+```
+
+如果使用域名和 HTTPS，把地址换成 `https://check.example.com`。
+
+## 实机验证
+
+2026-10 在 Debian 13（2 GB 内存 + 2 GB swap）上使用 Docker Engine 29.9.2 / Docker Compose v5.6.1 完成构建和验收：
+
+- 容器健康检查通过，重启后恢复 `healthy`；
+- `/`、`/en/`、`/hong-kong/`、`/russia/` 返回 200，`html lang` 分别为 `zh-CN`、`en`、`zh-HK`、`ru-RU`；未知路径返回 404；
+- gzip、静态资源长期缓存、HTML no-cache 和基础安全头生效；
+- 浏览器检测默认不发起 IP 请求；点击“开启网络层并重测”后只发出一次查询，第三方返回 429 时页面按设计跳过网络信号且不抬高分数。
+
+本次验收未包含域名、TLS 和公网暴露。`NEXT_PUBLIC_SITE_URL` 为空时 `/sitemap.xml` 是空列表，canonical、hreflang 和 OG URL 不输出；设置并重新构建后生成。
 
 ## 说明
 

@@ -92,5 +92,5 @@ log "Stop:      ${COMPOSE[*]} down"
 log ""
 log "Domain/TLS are not configured by this script. Point your reverse proxy at ${BIND}:${PORT}."
 if [ -z "$SITE_URL" ]; then
-  log "NEXT_PUBLIC_SITE_URL is empty: canonical, hreflang, OG URL, and sitemap are omitted."
+  log "NEXT_PUBLIC_SITE_URL is empty: canonical, hreflang, OG URL, and sitemap entries are omitted."
 fi

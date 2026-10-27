@@ -244,7 +244,7 @@ For Ubuntu / Debian with Docker Engine 20.10+ (24+ recommended) and Docker Compo
 git clone https://github.com/Brilliant666/check-cc.git
 cd check-cc
 cp .env.example .env
-# edit .env and set at least NEXT_PUBLIC_SITE_URL
+# edit .env; set NEXT_PUBLIC_SITE_URL when you have a domain, or leave it empty for local validation
 ./deploy/deploy.sh
 ```
 
@@ -255,6 +255,8 @@ CHECKCC_BIND=127.0.0.1 ./deploy/deploy.sh
 ```
 
 See [deploy/README.md](./deploy/README.md) for the full VPS guide, reverse-proxy examples, and update commands.
+
+This flow has been verified on Debian 13 (2 GB RAM + 2 GB swap) with Docker Engine 29.9.2 / Compose v5.6.1: build, health check, all four locale routes, 404 handling, and container restart passed. On low-memory hosts, add swap first as described in the deploy guide.
 
 ### Option 2: Manual static hosting
 
@@ -365,6 +367,7 @@ Yes. Set `NEXT_PUBLIC_IP_INTEL_ENABLED=false` at build time to remove the toggle
 - Added "Turn on network and recheck" for an opt-in IP-country signal.
 - Added a separate Hong Kong profile; Traditional Chinese / Hong Kong timezone no longer map to mainland China.
 - Added a Docker + Nginx one-command VPS deployment.
+- Verified the Docker deployment on Debian 13 (build, health check, locale routes, 404, restart).
 - Updated copy in all four languages, READMEs, and privacy notes.
 - 62 unit tests, type checking, lint, and static build pass.
 
