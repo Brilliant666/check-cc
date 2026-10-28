@@ -55,8 +55,15 @@ export function localeRisk(locale: string | null, region: RegionCode) {
 
 export const scanSteps = detectionConfig.steps;
 
+const webRtcSignalIds = new Set(["webrtc", "exitConsistency", "ipv6Leak"]);
+
 export const defaultSignals: SignalView[] = Object.entries(detectionConfig.signals)
-  .filter(([, config]) => config.enabled && ((config.source !== "server" && config.source !== "network") || detectionConfig.services.ipIntel?.enabled))
+  .filter(([id, config]) => {
+    if (!config.enabled) return false;
+    if (config.source !== "server" && config.source !== "network") return true;
+    if (!detectionConfig.services.ipIntel?.enabled) return false;
+    return !webRtcSignalIds.has(id) || Boolean(detectionConfig.services.webrtc?.enabled);
+  })
   .sort(([, a], [, b]) => a.order - b.order)
   .map(([id, config]) => ({ id, label: config.labelKey, value: null, score: 0, weight: config.weight, contribution: 0, source: config.source, evaluated: false }));
 

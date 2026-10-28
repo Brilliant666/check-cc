@@ -11,6 +11,7 @@ const ipwhoPayload = {
   city: "Phoenix",
   latitude: 33.4483757,
   longitude: -112.0740433,
+  timezone: { id: "America/Phoenix", abbr: "MST" },
   connection: { asn: 31898, org: "Oracle Corporation", isp: "Oracle Corporation" },
 };
 
@@ -24,6 +25,7 @@ const ipapiPayload = {
   country_code: "US",
   latitude: 33.4484,
   longitude: -112.074,
+  timezone: "America/Phoenix",
   asn: "AS31898",
   org: "ORACLE-BMC-31898",
 };
@@ -43,6 +45,7 @@ describe("parseIpIntelResponse", () => {
       asn: "AS31898",
       org: "Oracle Corporation",
       isp: "Oracle Corporation",
+      timezone: "America/Phoenix",
       latitude: 33.4483757,
       longitude: -112.0740433,
       ipType: "IPv4",
@@ -69,6 +72,7 @@ describe("parseIpIntelResponse", () => {
       city: "Phoenix",
       asn: "AS31898",
       org: "ORACLE-BMC-31898",
+      timezone: "America/Phoenix",
       ipType: "IPv4",
     });
   });

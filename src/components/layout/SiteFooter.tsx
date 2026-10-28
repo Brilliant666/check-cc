@@ -1,6 +1,6 @@
 // CheckCC 的站点页脚组件，用于展示项目说明、源码入口、上游归属和底部提示信息。
 import { messages, type LocaleCode } from "@/i18n/messages";
-import { repoLabel, repoUrl, upstreamRepoUrl } from "@/site-config";
+import { cgClaudeRepoUrl, repoLabel, repoUrl, upstreamRepoUrl } from "@/site-config";
 
 const pageMax = "mx-auto w-full max-w-[1440px] px-5 md:px-8 2xl:max-w-[1536px] min-[1800px]:max-w-[1760px] min-[1920px]:max-w-[1920px] min-[2400px]:max-w-[2200px]";
 
@@ -24,6 +24,7 @@ export function SiteFooter({ locale = "zh" }: { locale?: LocaleCode }) {
           <p>{copy.feature}</p>
           <p>{copy.note}</p>
           <a href={upstreamRepoUrl} target="_blank" rel="noreferrer" className="mt-2 block text-xs leading-5 text-stone-400 transition hover:text-[#d97757]">{copy.credit}</a>
+          <a href={cgClaudeRepoUrl} target="_blank" rel="noreferrer" className="mt-1 block text-xs leading-5 text-stone-400 transition hover:text-[#d97757]">{copy.related}: LcodeCoder/CG-Claude</a>
         </section>
       </div>
     </footer>

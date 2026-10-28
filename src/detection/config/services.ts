@@ -14,4 +14,9 @@ export const serviceConfig: Record<string, DetectionServiceConfig> = {
     fallbackEndpoint: ipIntelFallbackEndpoint,
     timeoutMs: 3500,
   },
+  webrtc: {
+    enabled: true,
+    endpoint: process.env.NEXT_PUBLIC_WEBRTC_STUN_URL?.trim() || "stun:stun.cloudflare.com:3478",
+    timeoutMs: 2500,
+  },
 };

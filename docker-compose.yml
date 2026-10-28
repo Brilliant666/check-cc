@@ -9,6 +9,7 @@ services:
         NEXT_PUBLIC_IP_INTEL_ENABLED: ${NEXT_PUBLIC_IP_INTEL_ENABLED:-true}
         NEXT_PUBLIC_IP_INTEL_ENDPOINT: ${NEXT_PUBLIC_IP_INTEL_ENDPOINT:-https://ipwho.is/}
         NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT: ${NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT-https://ipapi.co/json/}
+        NEXT_PUBLIC_WEBRTC_STUN_URL: ${NEXT_PUBLIC_WEBRTC_STUN_URL:-stun:stun.cloudflare.com:3478}
     image: checkcc:local
     container_name: checkcc
     restart: unless-stopped

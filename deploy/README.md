@@ -135,9 +135,10 @@ CHECKCC_BIND=127.0.0.1 CHECKCC_PORT=18081 ./deploy/deploy.sh
 | --- | --- | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | 空 | 构建时 | 站点对外地址，例如 `https://check.example.com`。设置后才生成 canonical、hreflang、OG URL 和 sitemap；为空时这些字段不输出 |
 | `NEXT_PUBLIC_REPO_URL` | 本仓库 | 构建时 | 页头、页脚和源码入口使用的 GitHub 地址 |
-| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | 构建时 | `false` 时彻底关闭网络层，界面不显示开关，也不发送 IP 查询 |
+| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | 构建时 | `false` 时彻底关闭网络层，界面不显示开关，也不发送 IP 查询或 STUN 请求 |
 | `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | 构建时 | 浏览器直连的主 CORS IP 查询接口，必须是 HTTPS |
 | `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://ipapi.co/json/` | 构建时 | 主接口失败、超时或被限流时自动尝试；设为空字符串可关闭回退。成功提示会显示实际使用的服务 |
+| `NEXT_PUBLIC_WEBRTC_STUN_URL` | `stun:stun.cloudflare.com:3478` | 构建时 | 网络层开启时用于收集 WebRTC 出口候选的 STUN 地址；浏览器会直接连接它 |
 | `CHECKCC_BIND` | `0.0.0.0` | 启动时 | 宿主机监听地址；按上面的拓扑选择 `127.0.0.1`、`0.0.0.0` 或指定网卡 IP |
 | `CHECKCC_PORT` | `8080` | 启动时 | 宿主机端口；可以改成任意空闲端口，容器内部始终监听 80 |
 

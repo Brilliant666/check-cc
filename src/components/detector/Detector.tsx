@@ -16,9 +16,12 @@ import { countryDisplayName, detectorLocaleText, type DetectorLocaleText } from 
 import { detectionConfig } from "@/detection/config";
 import { lookupNetworkIntel, providerHost, type NetworkIntel } from "@/detection/ip-intel";
 import { buildJsonReport, buildTextReport, reportFilename } from "@/detection/report";
+import { analyzeWebRtc, compareTimezones, probeWebRtc, type WebRtcProbeResult } from "@/detection/webrtc";
 import { runDetection, type DetectionRunResult } from "@/detection/runner";
 import { countryRisk } from "@/detection/scoring";
 import { messages, type LocaleCode } from "@/i18n/messages";
+import { cgClaudeRepoUrl } from "@/site-config";
+import { FixCta } from "@/components/detector/FixCta";
 
 type Props = { lang?: "zh" | "en"; locale?: LocaleCode };
 
@@ -75,6 +78,7 @@ export function Detector({ locale = "zh" }: Props) {
   const copy = messages[locale].detector;
   const detectorText = detectorLocaleText[locale];
   const ipIntelConfig = detectionConfig.services.ipIntel;
+  const webrtcConfig = detectionConfig.services.webrtc;
   const ipIntelAvailable = Boolean(ipIntelConfig?.enabled);
   const networkProvider = ipIntelConfig ? providerHost(ipIntelConfig.endpoint) : "";
   const networkFallbackProvider = ipIntelConfig?.fallbackEndpoint ? providerHost(ipIntelConfig.fallbackEndpoint) : "";
@@ -82,6 +86,7 @@ export function Detector({ locale = "zh" }: Props) {
   const [region, setRegion] = useState<RegionCode>("auto");
   const [browserResult, setBrowserResult] = useState<DetectionRunResult["browserResult"] | null>(null);
   const [networkIntel, setNetworkIntel] = useState<NetworkIntel | null>(null);
+  const [webrtcProbe, setWebrtcProbe] = useState<WebRtcProbeResult | null>(null);
   const [networkEnabled, setNetworkEnabled] = useState(false);
   const [networkUsed, setNetworkUsed] = useState(false);
   const [networkProviderLabel, setNetworkProviderLabel] = useState("");
@@ -98,28 +103,116 @@ export function Detector({ locale = "zh" }: Props) {
     const map = new Map<string, SignalResult>();
     for (const signal of browserResult?.signals ?? []) map.set(signal.id, signal);
 
-    if (networkUsed && networkIntel) {
-      const code = networkIntel.countryCode?.toUpperCase() ?? null;
-      if (code) {
-        const weight = detectionConfig.signals.country.weight;
-        const match = countryRisk(code, region);
-        map.set("country", {
-          id: "country",
-          label: detectorText.signalLabels.country,
-          value: `${countryDisplayName(code, locale)} (${code})`,
-          score: match.score,
-          weight,
-          contribution: Math.round(match.score * weight),
+    if (networkUsed) {
+      const webrtcAnalysis = webrtcConfig?.enabled && webrtcProbe ? analyzeWebRtc(webrtcProbe, networkIntel?.ip ?? null) : null;
+
+      if (networkIntel) {
+        const code = networkIntel.countryCode?.toUpperCase() ?? null;
+        if (code) {
+          const weight = detectionConfig.signals.country.weight;
+          const match = countryRisk(code, region);
+          map.set("country", {
+            id: "country",
+            label: detectorText.signalLabels.country,
+            value: `${countryDisplayName(code, locale)} (${code})`,
+            score: match.score,
+            weight,
+            contribution: Math.round(match.score * weight),
+            source: "network",
+            evaluated: true,
+          });
+        }
+        map.set("ipAddress", { id: "ipAddress", label: detectorText.signalLabels.ipAddress, value: networkIntel.ip, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
+        const location = [networkIntel.city, networkIntel.region].filter(Boolean).join(" / ");
+        if (location) map.set("browserIpLocation", { id: "browserIpLocation", label: detectorText.signalLabels.browserIpLocation, value: location, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
+        if (networkIntel.asn) map.set("browserIpAsn", { id: "browserIpAsn", label: detectorText.signalLabels.browserIpAsn, value: networkIntel.asn, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
+        const organization = networkIntel.org || networkIntel.isp;
+        if (organization) map.set("browserIpOrg", { id: "browserIpOrg", label: detectorText.signalLabels.browserIpOrg, value: organization, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
+
+        const timezoneSignal = browserResult?.signals.find((item) => item.id === "timezone");
+        const browserTimezone = timezoneSignal?.evaluated === false ? null : timezoneSignal?.value ?? null;
+        const timezoneMatch = networkIntel.timezone && browserTimezone ? compareTimezones(networkIntel.timezone, browserTimezone) : null;
+        const ipTimezoneWeight = detectionConfig.signals.ipTimezone.weight;
+        const timezoneSuffix = timezoneMatch === null ? "" : ` · ${timezoneMatch ? detectorText.signalValues.ipTimezoneMatch : detectorText.signalValues.ipTimezoneMismatch}`;
+        map.set("ipTimezone", {
+          id: "ipTimezone",
+          label: detectorText.signalLabels.ipTimezone,
+          value: networkIntel.timezone ? `${networkIntel.timezone}${browserTimezone ? ` / ${browserTimezone}` : ""}${timezoneSuffix}` : detectorText.notEvaluated,
+          score: timezoneMatch === false ? 1 : 0,
+          weight: ipTimezoneWeight,
+          contribution: timezoneMatch === false ? ipTimezoneWeight : 0,
           source: "network",
-          evaluated: true,
+          evaluated: timezoneMatch !== null,
         });
       }
-      map.set("ipAddress", { id: "ipAddress", label: detectorText.signalLabels.ipAddress, value: networkIntel.ip, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
-      const location = [networkIntel.city, networkIntel.region].filter(Boolean).join(" / ");
-      if (location) map.set("browserIpLocation", { id: "browserIpLocation", label: detectorText.signalLabels.browserIpLocation, value: location, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
-      if (networkIntel.asn) map.set("browserIpAsn", { id: "browserIpAsn", label: detectorText.signalLabels.browserIpAsn, value: networkIntel.asn, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
-      const organization = networkIntel.org || networkIntel.isp;
-      if (organization) map.set("browserIpOrg", { id: "browserIpOrg", label: detectorText.signalLabels.browserIpOrg, value: organization, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
+
+      if (webrtcConfig?.enabled && webrtcProbe) {
+        const webrtcWeight = detectionConfig.signals.webrtc.weight;
+        let webrtcValue = detectorText.notEvaluated;
+        let webrtcScore = 0;
+        let webrtcEvaluated = false;
+
+        if (webrtcProbe.status === "unsupported") webrtcValue = detectorText.signalValues.webrtcUnsupported;
+        else if (webrtcProbe.status === "timeout") webrtcValue = detectorText.signalValues.webrtcTimeout;
+        else if (webrtcProbe.status === "error") webrtcValue = detectorText.signalValues.webrtcError;
+        else if (!webrtcProbe.publicAddresses.length) webrtcValue = detectorText.signalValues.webrtcNoPublic;
+        else {
+          const addresses = webrtcProbe.publicAddresses.join(", ");
+          if (!networkIntel) {
+            webrtcValue = `${addresses} · ${detectorText.signalValues.exitUnknown}`;
+          } else if (webrtcAnalysis?.matchesHttp === null) {
+            webrtcValue = `${addresses} · ${detectorText.signalValues.webrtcNoCompare}`;
+          } else {
+            webrtcScore = webrtcAnalysis?.matchesHttp ? 0 : 1;
+            webrtcEvaluated = true;
+            webrtcValue = `${addresses} · ${webrtcScore ? detectorText.signalValues.webrtcMismatch : detectorText.signalValues.webrtcMatch}`;
+          }
+        }
+
+        map.set("webrtc", {
+          id: "webrtc",
+          label: detectorText.signalLabels.webrtc,
+          value: webrtcValue,
+          score: webrtcScore,
+          weight: webrtcWeight,
+          contribution: Math.round(webrtcScore * webrtcWeight),
+          source: "network",
+          evaluated: webrtcEvaluated,
+        });
+
+        if (networkIntel && webrtcProbe.status === "ok") {
+          const matched = webrtcAnalysis?.matchesHttp ?? null;
+          map.set("exitConsistency", {
+            id: "exitConsistency",
+            label: detectorText.signalLabels.exitConsistency,
+            value: matched === null ? detectorText.signalValues.exitUnknown : matched ? detectorText.signalValues.exitMatch : detectorText.signalValues.exitMismatch,
+            score: 0,
+            weight: 0,
+            contribution: 0,
+            source: "network",
+            evaluated: matched !== null,
+          });
+
+          const ipv6Addresses = webrtcAnalysis?.ipv6PublicAddresses ?? [];
+          const ipv6Leak = webrtcAnalysis?.ipv6Leak ?? null;
+          let ipv6Value = detectorText.signalValues.ipv6Unknown;
+          if (ipv6Leak !== null) {
+            if (!ipv6Addresses.length) ipv6Value = detectorText.signalValues.ipv6None;
+            else if (ipv6Leak) ipv6Value = `${ipv6Addresses.join(", ")} · ${networkIntel.ip.includes(":") ? detectorText.signalValues.ipv6Diff : detectorText.signalValues.ipv6Separate}`;
+            else ipv6Value = `${ipv6Addresses.join(", ")} · ${detectorText.signalValues.ipv6Same}`;
+          }
+          map.set("ipv6Leak", {
+            id: "ipv6Leak",
+            label: detectorText.signalLabels.ipv6Leak,
+            value: ipv6Value,
+            score: 0,
+            weight: 0,
+            contribution: 0,
+            source: "network",
+            evaluated: ipv6Leak !== null,
+          });
+        }
+      }
     }
 
     const visibleDefaults = defaultSignals.filter((item) => {
@@ -142,7 +235,7 @@ export function Detector({ locale = "zh" }: Props) {
       if (!visibleDefaults.some((item) => item.id === signal.id)) merged.push({ ...signal, state: signal.evaluated === false ? "unknown" : progress === 100 ? "done" : "running" });
     }
     return merged;
-  }, [browserResult, networkIntel, networkUsed, networkState, region, activeSignal, progress, detectorText, locale]);
+  }, [browserResult, networkIntel, webrtcProbe, webrtcConfig, networkUsed, networkState, region, activeSignal, progress, detectorText, locale]);
 
   const scoreSummary = useMemo(() => summarizeSignals(signals), [signals]);
   const rawScore = scoreSummary.score;
@@ -235,6 +328,7 @@ export function Detector({ locale = "zh" }: Props) {
     setLoading(true);
     setBrowserResult(null);
     setNetworkIntel(null);
+    setWebrtcProbe(null);
     setNetworkProviderLabel("");
     setProgress(0);
     setActiveSignal(0);
@@ -261,11 +355,16 @@ export function Detector({ locale = "zh" }: Props) {
 
         const progressAnimation = animateProgress(from, to, setProgress, setActiveSignal);
         if (index === 2 && useNetwork && ipIntelConfig) {
-          const [lookup] = await Promise.all([
+          const probeTask = webrtcConfig?.enabled
+            ? probeWebRtc({ stunUrl: webrtcConfig.endpoint, timeoutMs: webrtcConfig.timeoutMs })
+            : Promise.resolve(null);
+          const [lookup, probe] = await Promise.all([
             lookupNetworkIntel({ endpoint: ipIntelConfig.endpoint, fallbackEndpoint: ipIntelConfig.fallbackEndpoint, timeoutMs: ipIntelConfig.timeoutMs }),
+            probeTask,
             progressAnimation,
           ]);
           if (runTokenRef.current !== token) return;
+          setWebrtcProbe(probe);
           if (lookup.status === "ok") {
             setNetworkIntel(lookup.intel);
             setNetworkProviderLabel(lookup.provider);
@@ -297,7 +396,7 @@ export function Detector({ locale = "zh" }: Props) {
         window.dispatchEvent(new CustomEvent("checkcc-running", { detail: false }));
       }
     }
-  }, [region, networkEnabled, ipIntelAvailable, ipIntelConfig, detectorText]);
+  }, [region, networkEnabled, ipIntelAvailable, ipIntelConfig, webrtcConfig, detectorText]);
 
   const enableNetworkAndRerun = () => {
     if (runningRef.current || !ipIntelAvailable) return;
@@ -310,6 +409,7 @@ export function Detector({ locale = "zh" }: Props) {
     setRegion(code);
     setBrowserResult(null);
     setNetworkIntel(null);
+    setWebrtcProbe(null);
     setNetworkProviderLabel("");
     setNetworkState("idle");
     setNetworkUsed(networkEnabled && ipIntelAvailable);
@@ -426,6 +526,7 @@ export function Detector({ locale = "zh" }: Props) {
             <ScoreRing score={animatedScore} checked={ringActive} text={detectorText} />
             <div className="mt-3 text-xs font-bold text-stone-500">{detectorText.coverageLabel} {hasChecked ? `${coverage}% (${scoreSummary.evaluatedCount}/${scoreSummary.totalCount})` : "--"}</div>
             <div className={`mt-3 rounded-full px-4 py-2 text-sm font-bold ${riskLabelClass}`}>{riskLabel}</div>
+            {hasChecked && <FixCta text={detectorText.fix} url={cgClaudeRepoUrl} />}
           </div>
           <div>
             <div className="flex items-center justify-between gap-4">

@@ -10,6 +10,7 @@ export type NetworkIntel = {
   asn: string | null;
   org: string | null;
   isp: string | null;
+  timezone: string | null;
   latitude: number | null;
   longitude: number | null;
   ipType: string | null;
@@ -67,6 +68,7 @@ export function parseIpIntelResponse(payload: unknown): NetworkIntel | null {
   const ip = asText(root.ip);
   if (!ip) return null;
   const connection = asRecord(root.connection);
+  const timezone = asRecord(root.timezone);
   const countryCode = asText(root.country_code) ?? asText(root.countryCode);
   const asn = asText(root.asn) ?? asText(connection?.asn);
   return {
@@ -78,6 +80,7 @@ export function parseIpIntelResponse(payload: unknown): NetworkIntel | null {
     asn: normalizeAsn(asn),
     org: asText(root.org) ?? asText(connection?.org) ?? null,
     isp: asText(root.isp) ?? asText(connection?.isp) ?? null,
+    timezone: asText(root.timezone) ?? asText(timezone?.id) ?? null,
     latitude: asNumber(root.latitude) ?? asNumber(root.lat),
     longitude: asNumber(root.longitude) ?? asNumber(root.lon) ?? asNumber(root.lng),
     ipType: asText(root.type) ?? asText(root.ipType) ?? asText(root.version) ?? (ip.includes(":") ? "IPv6" : "IPv4"),

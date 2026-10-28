@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { messages } from "../../i18n/messages";
-import { collectBrowserSignals, isPublicIp, languageRisk, localeRisk, makeSignalScore, regions, summarizeSignals, timezoneRisk } from "../client-engine";
+import { cgClaudeRepoUrl } from "../../site-config";
+import { collectBrowserSignals, defaultSignals, isPublicIp, languageRisk, localeRisk, makeSignalScore, regions, summarizeSignals, timezoneRisk } from "../client-engine";
 import { detectionConfig } from "../config";
 import { detectorLocaleText } from "../locale";
 import type { SignalResult } from "../types";
@@ -180,12 +181,55 @@ describe("locale content", () => {
       expect(text.recommendations.limitation).not.toBe("");
       expect(text.recommendations.limitationNetwork).not.toBe("");
       expect(text.recommendations.limitationNetworkFailed).not.toBe("");
+      expect(text.fix.hint).not.toBe("");
+      expect(text.fix.cta).not.toBe("");
+      expect(text.fix.dialogTitle).not.toBe("");
+      expect(text.fix.dialogDesc).not.toBe("");
+      expect(text.fix.dialogNote).not.toBe("");
+      expect(text.fix.dialogProvider).not.toBe("");
+      expect(text.fix.dialogConfirm).not.toBe("");
+      expect(text.fix.dialogCancel).not.toBe("");
       expect(text.risk.unknown).not.toBe("");
       expect(text.report.title).not.toBe("");
       expect(text.report.copy).not.toBe("");
       expect(text.report.download).not.toBe("");
       expect(text.report.context).not.toBe("");
     }
+  });
+
+  it("ships WebRTC and egress copy for every locale", () => {
+    for (const text of Object.values(detectorLocaleText)) {
+      for (const key of ["webrtc", "exitConsistency", "ipv6Leak", "ipTimezone"]) {
+        expect(text.signalLabels[key]).toBeTruthy();
+      }
+      for (const key of ["webrtcUnsupported", "webrtcTimeout", "webrtcError", "webrtcNoPublic", "webrtcNoCompare", "webrtcMatch", "webrtcMismatch", "exitMatch", "exitMismatch", "exitUnknown", "ipv6None", "ipv6Same", "ipv6Diff", "ipv6Separate", "ipv6Unknown", "ipTimezoneMatch", "ipTimezoneMismatch"]) {
+        expect(text.signalValues[key]).toBeTruthy();
+      }
+      expect(text.network.toggleHint).toMatch(/STUN/);
+      expect(text.recommendations.limitation).toMatch(/STUN/);
+    }
+  });
+
+  it("links the post-check repair CTA to the documented third-party repository", () => {
+    expect(cgClaudeRepoUrl).toBe("https://github.com/LcodeCoder/CG-Claude");
+  });
+});
+
+describe("default signal configuration", () => {
+  it("includes the WebRTC and egress signals behind the network layer", () => {
+    const ids = defaultSignals.map((signal) => signal.id);
+
+    expect(ids).toEqual(expect.arrayContaining(["country", "webrtc", "exitConsistency", "ipv6Leak", "ipTimezone"]));
+    expect(ids.indexOf("webrtc")).toBeLessThan(ids.indexOf("ipAddress"));
+  });
+
+  it("weights the WebRTC egress and IP timezone signals", () => {
+    const byId = Object.fromEntries(defaultSignals.map((signal) => [signal.id, signal]));
+
+    expect(byId.webrtc).toMatchObject({ weight: 18, source: "network" });
+    expect(byId.exitConsistency).toMatchObject({ weight: 0, source: "network" });
+    expect(byId.ipv6Leak).toMatchObject({ weight: 0, source: "network" });
+    expect(byId.ipTimezone).toMatchObject({ weight: 4, source: "network" });
   });
 });
 

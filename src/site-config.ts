@@ -5,3 +5,4 @@ export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ? trimTrailingSlash(proc
 export const repoUrl = trimTrailingSlash(process.env.NEXT_PUBLIC_REPO_URL || "https://github.com/Brilliant666/check-cc");
 export const repoLabel = repoUrl.replace(/^https?:\/\//, "");
 export const upstreamRepoUrl = "https://github.com/yacuo/check-cc";
+export const cgClaudeRepoUrl = "https://github.com/LcodeCoder/CG-Claude";
