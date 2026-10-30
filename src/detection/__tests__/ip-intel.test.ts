@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { lookupNetworkIntel, parseIpIntelResponse, providerHost } from "../ip-intel";
+import { lookupNetworkIntel, parseEndpointList, parseIpIntelResponse, providerHost, RATE_LIMIT_COOLDOWN_MS, sessionCooldown, type ProviderCooldown } from "../ip-intel";
+import { DEFAULT_IP_INTEL_FALLBACKS } from "../config/services";
 
 const ipwhoPayload = {
   ip: "152.70.146.207",
@@ -29,6 +30,26 @@ const ipapiPayload = {
   asn: "AS31898",
   org: "ORACLE-BMC-31898",
 };
+
+const geojsPayload = {
+  ip: "152.70.146.207",
+  country: "United States",
+  country_code: "US",
+  country_code3: "USA",
+  region: "Arizona",
+  city: "Phoenix",
+  latitude: "33.4484",
+  longitude: "-112.074",
+  timezone: "America/Phoenix",
+  asn: 31898,
+  organization: "AS31898 Oracle Corporation",
+  organization_name: "Oracle Corporation",
+};
+
+function memoryCooldown(): ProviderCooldown & { entries: Map<string, number> } {
+  const entries = new Map<string, number>();
+  return { entries, get: (provider) => entries.get(provider) ?? null, set: (provider, until) => void entries.set(provider, until) };
+}
 
 function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: { "Content-Type": "application/json" } });
@@ -82,6 +103,31 @@ describe("parseIpIntelResponse", () => {
     expect(parseIpIntelResponse({ country_code: "US" })).toBeNull();
     expect(parseIpIntelResponse(null)).toBeNull();
     expect(parseIpIntelResponse("not-json")).toBeNull();
+  });
+});
+
+describe("parseIpIntelResponse with GeoJS", () => {
+  it("normalizes a GeoJS response", () => {
+    expect(parseIpIntelResponse(geojsPayload)).toMatchObject({
+      ip: "152.70.146.207",
+      countryCode: "US",
+      countryName: "United States",
+      asn: "AS31898",
+      org: "Oracle Corporation",
+      timezone: "America/Phoenix",
+      latitude: 33.4484,
+    });
+  });
+});
+
+describe("parseEndpointList", () => {
+  it("splits comma-separated endpoints, trims them, and drops duplicates", () => {
+    expect(parseEndpointList("https://a.example/", " https://b.example/ , https://a.example/,, ")).toEqual(["https://a.example/", "https://b.example/"]);
+    expect(parseEndpointList(undefined, "")).toEqual([]);
+  });
+
+  it("keeps the default chain in the documented order", () => {
+    expect(parseEndpointList("https://ipwho.is/", DEFAULT_IP_INTEL_FALLBACKS).map(providerHost)).toEqual(["ipwho.is", "get.geojs.io", "ipapi.co"]);
   });
 });
 
@@ -216,6 +262,100 @@ describe("lookupNetworkIntel", () => {
     expect(calls).toEqual([endpoint, endpoint]);
     expect(empty.providers).toEqual(["ipwho.is"]);
     expect(duplicate.providers).toEqual(["ipwho.is"]);
+  });
+});
+
+describe("lookupNetworkIntel fallbacks and cooldown", () => {
+  const endpoint = "https://ipwho.is/";
+  const fallbacks = "https://get.geojs.io/v1/ip/geo.json,https://ipapi.co/json/";
+
+  it("tries every fallback in order until one succeeds", async () => {
+    const calls: string[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(providerHost(url));
+      if (url.includes("ipapi.co")) return jsonResponse(ipapiPayload);
+      return new Response("", { status: 500 });
+    }) as typeof fetch;
+
+    const result = await lookupNetworkIntel({ endpoint, fallbackEndpoint: fallbacks, timeoutMs: 1000, fetchImpl });
+
+    expect(calls).toEqual(["ipwho.is", "get.geojs.io", "ipapi.co"]);
+    expect(result).toMatchObject({ status: "ok", provider: "ipapi.co", providers: ["ipwho.is", "get.geojs.io", "ipapi.co"] });
+  });
+
+  it("puts a rate-limited provider on cooldown and skips it on the next lookup", async () => {
+    const cooldown = memoryCooldown();
+    const calls: string[] = [];
+    let now = 1_000_000;
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(providerHost(url));
+      if (url.includes("ipwho.is")) return new Response("rate limited", { status: 429 });
+      return jsonResponse(geojsPayload);
+    }) as typeof fetch;
+
+    await lookupNetworkIntel({ endpoint, fallbackEndpoint: fallbacks, timeoutMs: 1000, fetchImpl, cooldown, now: () => now });
+    expect(cooldown.entries.get("ipwho.is")).toBe(now + RATE_LIMIT_COOLDOWN_MS);
+
+    calls.length = 0;
+    const second = await lookupNetworkIntel({ endpoint, fallbackEndpoint: fallbacks, timeoutMs: 1000, fetchImpl, cooldown, now: () => now });
+    expect(calls).toEqual(["get.geojs.io"]);
+    expect(second).toMatchObject({ status: "ok", provider: "get.geojs.io" });
+
+    // After the cooldown the primary is tried again.
+    calls.length = 0;
+    now += RATE_LIMIT_COOLDOWN_MS + 1;
+    await lookupNetworkIntel({ endpoint, fallbackEndpoint: fallbacks, timeoutMs: 1000, fetchImpl, cooldown, now: () => now });
+    expect(calls[0]).toBe("ipwho.is");
+  });
+
+  it("only cools down on 429, not on other failures", async () => {
+    const cooldown = memoryCooldown();
+    const fetchImpl = (async (input: RequestInfo | URL) => (String(input).includes("ipwho.is") ? new Response("", { status: 503 }) : jsonResponse(geojsPayload))) as typeof fetch;
+
+    await lookupNetworkIntel({ endpoint, fallbackEndpoint: fallbacks, timeoutMs: 1000, fetchImpl, cooldown });
+
+    expect(cooldown.entries.size).toBe(0);
+  });
+
+  it("still tries every provider when all of them are cooling down", async () => {
+    const cooldown = memoryCooldown();
+    const now = 5_000;
+    for (const host of ["ipwho.is", "get.geojs.io", "ipapi.co"]) cooldown.set(host, now + 60_000);
+    const calls: string[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      calls.push(providerHost(String(input)));
+      return jsonResponse(ipwhoPayload);
+    }) as typeof fetch;
+
+    const result = await lookupNetworkIntel({ endpoint, fallbackEndpoint: fallbacks, timeoutMs: 1000, fetchImpl, cooldown, now: () => now });
+
+    expect(calls).toEqual(["ipwho.is"]);
+    expect(result.status).toBe("ok");
+  });
+});
+
+describe("sessionCooldown", () => {
+  it("stores only provider hosts and expiry times", () => {
+    const store = new Map<string, string>();
+    const storage = { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => void store.set(key, value) };
+    const cooldown = sessionCooldown(storage);
+
+    cooldown.set("ipwho.is", 123);
+    cooldown.set("ipapi.co", 456);
+
+    expect(cooldown.get("ipwho.is")).toBe(123);
+    expect(cooldown.get("get.geojs.io")).toBeNull();
+    expect(JSON.parse([...store.values()][0])).toEqual({ "ipwho.is": 123, "ipapi.co": 456 });
+  });
+
+  it("tolerates missing, corrupt, or failing storage", () => {
+    expect(sessionCooldown(null).get("ipwho.is")).toBeNull();
+    const corrupt = sessionCooldown({ getItem: () => "{not json", setItem: () => {} });
+    expect(corrupt.get("ipwho.is")).toBeNull();
+    const failing = sessionCooldown({ getItem: () => null, setItem: () => { throw new Error("QuotaExceededError"); } });
+    expect(() => failing.set("ipwho.is", 1)).not.toThrow();
   });
 });
 

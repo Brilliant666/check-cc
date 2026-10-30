@@ -1,7 +1,8 @@
 "use client";
 
 // CheckCC 的浏览器端检测组件，用于执行环境扫描、展示风险信号、进度状态和检测结果。
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { RegionCode } from "@/detection/types";
 import {
   animateProgress,
@@ -14,7 +15,7 @@ import {
 } from "@/detection/client-engine";
 import { detectorLocaleText, type DetectorLocaleText } from "@/detection/locale";
 import { detectionConfig } from "@/detection/config";
-import { lookupNetworkIntel, providerHost, type NetworkIntel } from "@/detection/ip-intel";
+import { lookupNetworkIntel, parseEndpointList, providerHost, sessionCooldown, type NetworkIntel } from "@/detection/ip-intel";
 import { mergeSignals, type NetworkState } from "@/detection/merge-signals";
 import { buildJsonReport, buildTextReport, reportFilename } from "@/detection/report";
 import { probeWebRtc, type WebRtcProbeResult } from "@/detection/webrtc";
@@ -27,6 +28,23 @@ import { cgClaudeRepoUrl } from "@/site-config";
 import { FixCta } from "@/components/detector/FixCta";
 
 type Props = { lang?: "zh" | "en"; locale?: LocaleCode };
+
+// Matches Tailwind's md breakpoint. The server render and the first client render assume desktop.
+const DESKTOP_QUERY = "(min-width: 768px)";
+function subscribeDesktop(onChange: () => void) {
+  const query = window.matchMedia(DESKTOP_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+function useIsDesktop() {
+  return useSyncExternalStore(subscribeDesktop, () => window.matchMedia(DESKTOP_QUERY).matches, () => true);
+}
+
+// The page wrapper has a transform (for the mobile menu slide), which turns position: fixed into
+// absolute positioning. The mobile sheet therefore renders into document.body, like FixCta's dialog.
+function SettingsLayer({ portal, children }: { portal: boolean; children: ReactNode }) {
+  return portal ? createPortal(children, document.body) : children;
+}
 
 function ScoreRing({ score, checked, text }: { score: number; checked: boolean; text: DetectorLocaleText }) {
   const deg = checked ? Math.max(0, Math.min(100, score)) * 3.6 : 0;
@@ -88,8 +106,9 @@ export function Detector({ locale = "zh" }: Props) {
   const reachabilityConfig = detectionConfig.services.reachability;
   const ipIntelAvailable = Boolean(ipIntelConfig?.enabled);
   const networkProvider = ipIntelConfig ? providerHost(ipIntelConfig.endpoint) : "";
-  const networkFallbackProvider = ipIntelConfig?.fallbackEndpoint ? providerHost(ipIntelConfig.fallbackEndpoint) : "";
-  const networkProviderChain = Array.from(new Set([networkProvider, networkFallbackProvider].filter(Boolean))).join(" → ");
+  const networkFallbackProviders = parseEndpointList(ipIntelConfig?.fallbackEndpoint).map(providerHost).filter((host) => host !== networkProvider);
+  const networkFallbackProvider = networkFallbackProviders.join(" / ");
+  const networkProviderChain = Array.from(new Set([networkProvider, ...networkFallbackProviders].filter(Boolean))).join(" → ");
   const [region, setRegion] = useState<RegionCode>("auto");
   const [browserResult, setBrowserResult] = useState<DetectionRunResult["browserResult"] | null>(null);
   const [networkIntel, setNetworkIntel] = useState<NetworkIntel | null>(null);
@@ -107,6 +126,39 @@ export function Detector({ locale = "zh" }: Props) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const runningRef = useRef(false);
   const runTokenRef = useRef(0);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const settingsPanelRef = useRef<HTMLDivElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  const isDesktop = useIsDesktop();
+
+  const closeSettings = useCallback((restoreFocus = true) => {
+    setSettingsOpen(false);
+    if (restoreFocus) settingsButtonRef.current?.focus();
+  }, []);
+
+  // The settings float over the page, so close them on Escape or a click outside.
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeSettings();
+    };
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!settingsRef.current?.contains(target) && !settingsPanelRef.current?.contains(target)) closeSettings(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    const previousOverflow = document.body.style.overflow;
+    if (!isDesktop) {
+      document.body.style.overflow = "hidden";
+      settingsPanelRef.current?.focus();
+    }
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [settingsOpen, closeSettings, isDesktop]);
 
   const signals = useMemo(
     () =>
@@ -259,7 +311,7 @@ export function Detector({ locale = "zh" }: Props) {
               })
             : Promise.resolve(null);
           const [lookup, probe, ipv6, reachability] = await Promise.all([
-            lookupNetworkIntel({ endpoint: ipIntelConfig.endpoint, fallbackEndpoint: ipIntelConfig.fallbackEndpoint, timeoutMs: ipIntelConfig.timeoutMs }),
+            lookupNetworkIntel({ endpoint: ipIntelConfig.endpoint, fallbackEndpoint: ipIntelConfig.fallbackEndpoint, timeoutMs: ipIntelConfig.timeoutMs, cooldown: sessionCooldown() }),
             probeTask,
             ipv6Task,
             reachabilityTask,
@@ -358,8 +410,8 @@ export function Detector({ locale = "zh" }: Props) {
         <button type="button" onClick={() => void runCheck()} disabled={loading} className="h-14 w-full cursor-pointer rounded-full bg-[#d97757] px-8 text-lg font-black text-white shadow-xl shadow-orange-900/20 transition hover:bg-[#c05f3c] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto md:min-w-[360px]">
           {loading ? copy.loadingText : copy.idleCta}
         </button>
-        <div className="mt-4 flex flex-col items-center gap-2">
-          <button type="button" onClick={() => setSettingsOpen((value) => !value)} aria-expanded={settingsOpen} aria-controls="detector-settings" className="inline-flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-stone-300 bg-white/70 px-4 py-2 text-xs font-bold text-stone-600 transition hover:border-[#d97757] hover:text-[#c05f3c]">
+        <div ref={settingsRef} className="relative mt-4 flex flex-col items-center gap-2">
+          <button ref={settingsButtonRef} type="button" onClick={() => setSettingsOpen((value) => !value)} aria-expanded={settingsOpen} aria-controls="detector-settings" aria-haspopup="dialog" className="inline-flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-stone-300 bg-white/70 px-4 py-2 text-xs font-bold text-stone-600 transition hover:border-[#d97757] hover:text-[#c05f3c]">
             <span>{detectorText.settings.label}</span>
             <span className="text-stone-400">·</span>
             <span>{detectorText.regions[region]}</span>
@@ -368,30 +420,41 @@ export function Detector({ locale = "zh" }: Props) {
             <svg viewBox="0 0 24 24" className={`size-4 transition-transform ${settingsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m6 9 6 6 6-6" /></svg>
           </button>
           {settingsOpen && (
-            <div id="detector-settings" className="w-full max-w-xl rounded-3xl border border-stone-200 bg-white p-4 text-left shadow-lg shadow-orange-950/5">
-              <p className="text-sm font-black text-[#0b1220]">{copy.targetTitle}</p>
-              <p className="mt-1 text-xs font-semibold leading-5 text-stone-500">{copy.targetDesc}</p>
-              <div role="group" aria-label={copy.targetTitle} className="mt-3 grid grid-cols-3 gap-2">
-                {regions.map((item) => (
-                  <button key={item.code} type="button" aria-pressed={region === item.code} disabled={loading} onClick={() => changeRegion(item.code)} className={`rounded-xl border px-2 py-2.5 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${region === item.code ? "border-[#d97757] bg-orange-50 text-[#c05f3c]" : "border-stone-200 bg-white text-[#0b1220] hover:border-stone-300"}`}>
-                    {detectorText.regions[item.code]}
+            <SettingsLayer portal={!isDesktop}>
+              {/* Mobile only: dims the page behind the bottom sheet; tapping it closes the sheet. */}
+              <button type="button" tabIndex={-1} aria-hidden="true" onClick={() => closeSettings()} className="fixed inset-0 z-[55] cursor-default bg-stone-900/30 md:hidden" />
+              {/* Floats over the result instead of pushing it down: a bottom sheet on mobile, a popover under the button on desktop. */}
+              <div ref={settingsPanelRef} tabIndex={-1} id="detector-settings" role="dialog" aria-modal={isDesktop ? undefined : true} aria-label={detectorText.settings.label} className="fixed inset-x-0 bottom-0 z-[56] outline-none max-h-[85vh] overflow-y-auto rounded-t-3xl border border-stone-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-left shadow-2xl shadow-stone-900/20 md:absolute md:inset-x-auto md:bottom-auto md:left-1/2 md:top-full md:z-30 md:mt-2 md:max-h-none md:w-[36rem] md:-translate-x-1/2 md:overflow-visible md:rounded-3xl md:pb-4 md:shadow-xl md:shadow-orange-950/10">
+                <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-stone-300 md:hidden" aria-hidden="true" />
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-black text-[#0b1220]">{copy.targetTitle}</p>
+                  <button type="button" onClick={() => closeSettings()} aria-label={detectorText.settings.close} className="-mr-1 -mt-1 grid size-8 shrink-0 place-items-center rounded-full text-stone-400 transition hover:bg-stone-100 hover:text-stone-600">
+                    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
                   </button>
-                ))}
+                </div>
+                <p className="mt-1 text-xs font-semibold leading-5 text-stone-500">{copy.targetDesc}</p>
+                <div role="group" aria-label={copy.targetTitle} className="mt-3 grid grid-cols-3 gap-2">
+                  {regions.map((item) => (
+                    <button key={item.code} type="button" aria-pressed={region === item.code} disabled={loading} onClick={() => changeRegion(item.code)} className={`rounded-xl border px-2 py-2.5 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${region === item.code ? "border-[#d97757] bg-orange-50 text-[#c05f3c]" : "border-stone-200 bg-white text-[#0b1220] hover:border-stone-300"}`}>
+                      {detectorText.regions[item.code]}
+                    </button>
+                  ))}
+                </div>
+                {ipIntelAvailable && (
+                  <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-2xl bg-stone-50 px-4 py-3 ring-1 ring-stone-200">
+                    <input type="checkbox" checked={networkEnabled} disabled={loading} onChange={(event) => setNetworkEnabled(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[#d97757]" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-black text-[#0b1220]">{detectorText.network.toggleLabel}</span>
+                      <span className="mt-0.5 block text-xs font-semibold leading-5 text-stone-500">{detectorText.network.toggleHint.replaceAll("{provider}", networkProviderChain)}</span>
+                      {networkFallbackProvider && (
+                        <span className="mt-0.5 block text-xs font-semibold leading-5 text-stone-500">{detectorText.network.fallbackHint.replaceAll("{fallback}", networkFallbackProvider)}</span>
+                      )}
+                    </span>
+                  </label>
+                )}
+                {hasChecked && <p className="mt-3 text-xs font-semibold leading-5 text-stone-500">{detectorText.settings.changeHint}</p>}
               </div>
-              {ipIntelAvailable && (
-                <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-2xl bg-stone-50 px-4 py-3 ring-1 ring-stone-200">
-                  <input type="checkbox" checked={networkEnabled} disabled={loading} onChange={(event) => setNetworkEnabled(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[#d97757]" />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-black text-[#0b1220]">{detectorText.network.toggleLabel}</span>
-                    <span className="mt-0.5 block text-xs font-semibold leading-5 text-stone-500">{detectorText.network.toggleHint.replaceAll("{provider}", networkProviderChain)}</span>
-                    {networkFallbackProvider && (
-                      <span className="mt-0.5 block text-xs font-semibold leading-5 text-stone-500">{detectorText.network.fallbackHint.replaceAll("{fallback}", networkFallbackProvider)}</span>
-                    )}
-                  </span>
-                </label>
-              )}
-              {hasChecked && <p className="mt-3 text-xs font-semibold leading-5 text-stone-500">{detectorText.settings.changeHint}</p>}
-            </div>
+            </SettingsLayer>
           )}
         </div>
         <div className="relative mt-10 text-center font-black" role="status" aria-live="polite" aria-atomic="true">

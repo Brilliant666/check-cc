@@ -64,7 +64,7 @@
 
 ![CheckCC 开启网络层后的检测结果](./docs/images/readme/detection-network.png)
 
-上图使用示例数据：IP 为公共 DNS 地址，WebRTC 显示为不支持，不代表任何真实访客。点击“开启网络层并重测”后，浏览器会直连 `ipwho.is` 查询出口 IP；如果主接口失败或被限流，会自动回退到 `ipapi.co`，并在提示中显示实际使用的服务。同一次网络层检测还会通过 STUN 收集 WebRTC 出口候选、向 IPv6 专用接口查询直连出口、直连 Anthropic 三个探测目标（claude.ai 边缘诊断路径、www.anthropic.com、api.anthropic.com），用于和 HTTP 出口、IP 时区交叉核对。加权信号最多仍为 `13/13`；信号面板最多展示 29 行（14 项浏览器信号 + 15 项网络信号），其中 IP 国家、WebRTC 出口和 IP 时区加权，其余为上下文。浏览器不支持 WebRTC、STUN 被拦截或没有可比候选时，对应信号标记为“未检测”，覆盖率会下降；端点或 IPv6 探测失败只影响各自的零权重信号。
+上图使用示例数据：IP 为公共 DNS 地址，WebRTC 显示为不支持，不代表任何真实访客。点击“开启网络层并重测”后，浏览器会直连 `ipwho.is` 查询出口 IP；如果主接口失败或被限流，会依次尝试 `get.geojs.io` 和 `ipapi.co`，并在提示中显示实际使用的服务。同一次网络层检测还会通过 STUN 收集 WebRTC 出口候选、向 IPv6 专用接口查询直连出口、直连 Anthropic 三个探测目标（claude.ai 边缘诊断路径、www.anthropic.com、api.anthropic.com），用于和 HTTP 出口、IP 时区交叉核对。加权信号最多仍为 `13/13`；信号面板最多展示 29 行（14 项浏览器信号 + 15 项网络信号），其中 IP 国家、WebRTC 出口和 IP 时区加权，其余为上下文。浏览器不支持 WebRTC、STUN 被拦截或没有可比候选时，对应信号标记为“未检测”，覆盖率会下降；端点或 IPv6 探测失败只影响各自的零权重信号。
 
 ### 🇭🇰 香港环境独立画像
 
@@ -76,7 +76,7 @@
 
 ![CheckCC 检测设置](./docs/images/readme/settings.png)
 
-检测目标、网络层开关和隐私说明都在页内展开，不弹出模态框。修改检测目标会清空当前结果，需要重新点击检测。
+检测目标、网络层开关和隐私说明放在设置浮层里：桌面端在按钮下方弹出、盖在结果上方，手机端从底部弹出，打开时页面不会被推开。按 Esc、点外部或点关闭按钮即可收起。修改检测目标会清空当前结果，需要重新点击检测。
 
 ### 🧠 检测原理与重点地区
 
@@ -174,7 +174,8 @@
 
 - 检测不需要登录 Claude，不读取账号、密码、Cookie 或聊天内容。
 - 网络层默认关闭；默认检测只使用浏览器信号，不向第三方发送 IP 查询、STUN、IPv6 查询或 Anthropic 端点请求。
-- 开启网络层时，浏览器直接请求配置的第三方 IP 地理服务（默认 `ipwho.is`，失败时自动回退到 `ipapi.co`），通过默认的 `stun.cloudflare.com:3478` 收集 WebRTC 候选，向 IPv6 专用接口（默认 `api6.ipify.org`）查询直连出口，并直连 `claude.ai` 边缘诊断路径、`www.anthropic.com` 与 `api.anthropic.com`。claude.ai 主站因 CORP 响应头无法被浏览器跨域探测，因此不请求主站页面。这些服务会看到你的公网 IP。请求不经过本站服务器，本站不接收、不转发、不存储查询结果。成功提示会显示本次实际使用的 IP 查询服务。
+- 开启网络层时，浏览器直接请求配置的第三方 IP 地理服务（默认 `ipwho.is`，失败时依次回退到 `get.geojs.io` 和 `ipapi.co`），通过默认的 `stun.cloudflare.com:3478` 收集 WebRTC 候选，向 IPv6 专用接口（默认 `api6.ipify.org`）查询直连出口，并直连 `claude.ai` 边缘诊断路径、`www.anthropic.com` 与 `api.anthropic.com`。claude.ai 主站因 CORP 响应头无法被浏览器跨域探测，因此不请求主站页面。实际被请求到的服务会看到你的公网 IP。请求不经过本站服务器，本站不接收、不转发、不存储查询结果。成功提示会显示本次实际使用的 IP 查询服务。
+- 某个 IP 查询服务返回 429（限流）后，浏览器会在本次会话的 `sessionStorage` 里记下它的主机名和 1 小时的冷却截止时间，期间直接跳过它。这里只存主机名和时间，不存 IP 或查询结果；关闭标签页后清除。查询结果本身不缓存，每次检测查的都是当前出口。
 - 端点探测使用 `no-cors` 和 `cache: "no-store"`，不携带 Cookie、不发送来源页面，也不读取响应内容；它只能说明浏览器网络能否完成请求，不代表账号或地区可用。
 - WebRTC 探测只收集出口候选并与 HTTP 出口比较，不建立媒体通话、不读取设备名称或局域网主机名；浏览器返回的 mDNS 候选不参与评分。
 - 请求使用 `credentials: "omit"` 和 `no-referrer`，不携带 Cookie 或来源页面。
@@ -317,11 +318,11 @@ pnpm build
 | --- | --- | --- |
 | `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | 设为 `false` 时彻底关闭网络层，界面不显示开关，也不发送 IP 查询、STUN、IPv6 查询或端点探测。设为 `true` 只提供按需开启的选项，首次检测仍默认不请求 IP |
 | `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | 主查询接口，必须是支持 CORS 的 HTTPS 接口；浏览器会直接请求它 |
-| `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://ipapi.co/json/` | 主接口失败、超时或被限流时自动尝试的备用接口；设为空字符串可关闭回退。成功提示显示实际使用的服务 |
+| `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://get.geojs.io/v1/ip/geo.json,https://ipapi.co/json/` | 主接口失败、超时或被限流时按顺序尝试的备用接口，多个用英文逗号分隔；设为空字符串可关闭回退。成功提示显示实际使用的服务 |
 | `NEXT_PUBLIC_WEBRTC_STUN_URL` | `stun:stun.cloudflare.com:3478` | 网络层开启时使用的 STUN 地址；必须支持 WebRTC，浏览器会直接连接它。修改后需要重新构建 |
 | `NEXT_PUBLIC_IPV6_ENDPOINT` | `https://api6.ipify.org?format=json` | IPv6 直连出口查询接口，返回 JSON 的 `ip` 字段；应是只解析 AAAA 记录的 HTTPS 地址 |
 
-接口可以返回 ipwho.is 的原始结构，也可以返回 ipapi.co 或自建接口常见的扁平结构：
+接口可以返回 ipwho.is 的原始结构，也可以返回 GeoJS、ipapi.co 或自建接口常见的扁平结构：
 
 ```json
 {
@@ -379,7 +380,7 @@ GitHub Actions 会在 push 和 pull request 时执行 lint、类型检查、单�
 
 ### 3. 网络层查询失败会影响分数吗？
 
-不会。主接口失败时会自动尝试备用接口；全部接口失败后，国家信号显示为“查询失败/未检测”，覆盖率下降，但分数不会因为缺失的 20 分权重被放大。STUN 被拦截或浏览器不支持 WebRTC 时，同样只是跳过 WebRTC 18 分和 IP 时区 4 分的权重。IPv6 或 Anthropic 端点探测失败只在零权重上下文中显示原因，不影响分数。
+不会。主接口失败时会按顺序尝试备用接口，被限流的接口在本次会话内会被暂时跳过；全部接口失败后，国家信号显示为“查询失败/未检测”，覆盖率下降，但分数不会因为缺失的 20 分权重被放大。STUN 被拦截或浏览器不支持 WebRTC 时，同样只是跳过 WebRTC 18 分和 IP 时区 4 分的权重。IPv6 或 Anthropic 端点探测失败只在零权重上下文中显示原因，不影响分数。
 
 ### 4. 检测结果能证明账号安全吗？
 

@@ -30,7 +30,7 @@ export type DetectorLocaleText = {
     unavailable: string;
     enableAndRetry: string;
   };
-  settings: { label: string; networkOn: string; networkOff: string; changeHint: string };
+  settings: { label: string; close: string; networkOn: string; networkOff: string; changeHint: string };
   recommendationsTitle: string;
   recommendations: { high: string; medium: string; low: string; incomplete: string; limitation: string; limitationNetwork: string; limitationNetworkFailed: string };
   fix: { hint: string; cta: string; dialogTitle: string; dialogDesc: string; dialogNote: string; dialogProvider: string; dialogConfirm: string; dialogCancel: string };
@@ -82,7 +82,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
     network: {
       toggleLabel: "同时检测网络出口（IP / WebRTC / IPv6 / Claude 端点）",
       toggleHint: "浏览器直连 {provider} 查询 IP，通过 STUN 收集 WebRTC 出口，并探测 claude.ai 边缘诊断路径、www.anthropic.com、api.anthropic.com 与 IPv6 直连出口。claude.ai 主站受跨域策略保护，浏览器无法直接探测。本站不经过服务器转发，但这些第三方服务会看到你的 IP。",
-      fallbackHint: "主服务失败或被限流时会自动尝试备用服务 {fallback}；两个服务都会看到你的 IP。",
+      fallbackHint: "主服务失败或被限流时会按顺序尝试备用服务 {fallback}；被限流的服务会在本次浏览会话内暂时跳过。实际被请求到的服务都会看到你的 IP。",
       idle: "网络层：已开启。检测时浏览器将通过 {provider} 查询出口 IP，通过 STUN 收集 WebRTC 候选，并直连 Anthropic 相关端点与 IPv6 探测服务；请求由浏览器直连第三方，本站不接收或存储结果。",
       checking: "网络层：正在通过 {provider} 查询出口 IP，并收集 WebRTC、Anthropic 端点与 IPv6 出口结果…",
       success: "网络层：已通过 {provider} 获取出口 IP，并执行了 WebRTC、Anthropic 端点与 IPv6 出口探测。各项结果分别显示；探测未完成不代表对应能力不可用。请求由浏览器直连第三方，本站不接收或存储该数据。",
@@ -91,7 +91,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
       unavailable: "查询失败",
       enableAndRetry: "开启网络层并重测",
     },
-    settings: { label: "检测设置", networkOn: "网络层开启", networkOff: "网络层关闭", changeHint: "修改检测目标会清空当前结果，请重新点击检测。" },
+    settings: { label: "检测设置", close: "关闭检测设置", networkOn: "网络层开启", networkOff: "网络层关闭", changeHint: "修改检测目标会清空当前结果，请重新点击检测。" },
     recommendationsTitle: "下一步建议",
     recommendations: {
       high: "命中多项高风险信号。若当前环境与账号常用地区不一致，建议先停止在该环境登录或订阅，核对一致后再使用。",
@@ -150,7 +150,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
     network: {
       toggleLabel: "同時檢測網絡出口（IP / WebRTC / IPv6 / Claude 端點）",
       toggleHint: "瀏覽器直連 {provider} 查詢 IP，透過 STUN 收集 WebRTC 出口，並探測 claude.ai 邊緣診斷路徑、www.anthropic.com、api.anthropic.com 與 IPv6 直連出口。claude.ai 主站受跨域策略保護，瀏覽器無法直接探測。本站不經伺服器轉發，但這些第三方服務會看到你的 IP。",
-      fallbackHint: "主服務失敗或被限流時會自動嘗試備用服務 {fallback}；兩個服務都會看到你的 IP。",
+      fallbackHint: "主服務失敗或被限流時會依序嘗試備用服務 {fallback}；被限流的服務會在本次瀏覽工作階段內暫時略過。實際被請求到的服務都會看到你的 IP。",
       idle: "網絡層：已開啟。檢測時瀏覽器將透過 {provider} 查詢出口 IP，透過 STUN 收集 WebRTC 候選，並直連 Anthropic 相關端點與 IPv6 探測服務；請求由瀏覽器直連第三方，本站不接收或儲存結果。",
       checking: "網絡層：正在透過 {provider} 查詢出口 IP，並收集 WebRTC、Anthropic 端點與 IPv6 出口結果…",
       success: "網絡層：已透過 {provider} 取得出口 IP，並執行了 WebRTC、Anthropic 端點與 IPv6 出口探測。各項結果分別顯示；探測未完成不代表對應能力不可用。請求由瀏覽器直連第三方，本站不接收或儲存該資料。",
@@ -159,7 +159,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
       unavailable: "查詢失敗",
       enableAndRetry: "開啟網絡層並重測",
     },
-    settings: { label: "檢測設定", networkOn: "網絡層已開啟", networkOff: "網絡層已關閉", changeHint: "修改檢測目標會清空目前結果，請重新點擊檢測。" },
+    settings: { label: "檢測設定", close: "關閉檢測設定", networkOn: "網絡層已開啟", networkOff: "網絡層已關閉", changeHint: "修改檢測目標會清空目前結果，請重新點擊檢測。" },
     recommendationsTitle: "下一步建議",
     recommendations: {
       high: "命中多項高風險訊號。若目前環境與帳號常用地區不一致，建議先停止在該環境登入或訂閱，核對一致後再使用。",
@@ -218,7 +218,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
     network: {
       toggleLabel: "Проверять сетевой выход (IP / WebRTC / IPv6 / Claude)",
       toggleHint: "Браузер обращается к {provider} за IP, собирает WebRTC-кандидаты через STUN и проверяет edge-диагностику claude.ai, www.anthropic.com, api.anthropic.com и прямой IPv6-выход. Основной сайт claude.ai защищён политикой CORP и недоступен для браузерной проверки. Сайт не проксирует запросы, но эти сторонние сервисы увидят ваш IP.",
-      fallbackHint: "Если основной сервис недоступен или ограничил запросы, браузер автоматически обратится к {fallback}; оба сервиса увидят ваш IP.",
+      fallbackHint: "Если основной сервис недоступен или ограничил запросы, браузер по очереди обращается к {fallback}. Сервис, ограничивший запросы, пропускается до конца текущей сессии браузера. Каждый сервис, к которому браузер действительно обратился, увидит ваш IP.",
       idle: "Сетевой слой: включён. При проверке браузер запросит публичный IP у {provider}, соберёт WebRTC-кандидаты через STUN и напрямую проверит эндпоинты Anthropic и IPv6-сервис; запросы идут напрямую третьим сторонам, сайт не получает и не хранит результат.",
       checking: "Сетевой слой: запрашиваем публичный IP через {provider} и собираем результаты WebRTC, эндпоинтов Anthropic и IPv6…",
       success: "Сетевой слой: публичный IP получен через {provider}, проверки WebRTC, эндпоинтов Anthropic и IPv6 выполнены. Результаты показаны по каждому сигналу; незавершённая проверка не означает недоступность. Запросы отправлены напрямую из браузера; сайт не получает и не хранит их.",
@@ -227,7 +227,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
       unavailable: "Не получено",
       enableAndRetry: "Включить сеть и повторить",
     },
-    settings: { label: "Настройки", networkOn: "Сетевой слой вкл.", networkOff: "Сетевой слой выкл.", changeHint: "Смена цели проверки очистит текущий результат; запустите проверку снова." },
+    settings: { label: "Настройки", close: "Закрыть настройки", networkOn: "Сетевой слой вкл.", networkOff: "Сетевой слой выкл.", changeHint: "Смена цели проверки очистит текущий результат; запустите проверку снова." },
     recommendationsTitle: "Рекомендации",
     recommendations: {
       high: "Обнаружено несколько сигналов высокого риска. Если среда отличается от обычного региона аккаунта, не входите и не оформляйте подписку до устранения расхождений.",
@@ -286,7 +286,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
     network: {
       toggleLabel: "Also check network egress (IP / WebRTC / IPv6 / Claude endpoints)",
       toggleHint: "Your browser queries {provider} for your IP, gathers WebRTC egress through STUN, and probes claude.ai's edge diagnostic path, www.anthropic.com, api.anthropic.com, and direct IPv6 egress. The claude.ai app is protected by a cross-origin policy, so browsers cannot probe it directly. This site does not proxy the requests, but those third parties will see your IP.",
-      fallbackHint: "If the primary provider fails or rate-limits the request, the browser automatically tries {fallback}; both providers will see your IP.",
+      fallbackHint: "If the primary provider fails or rate-limits the request, the browser tries {fallback} in order. A rate-limited provider is skipped for the rest of this browser session. Every provider that is actually contacted will see your IP.",
       idle: "Network layer: on. During the check your browser queries {provider} for your public IP, gathers WebRTC candidates through STUN, and contacts Anthropic-related endpoints and an IPv6 probe directly; requests go directly to third parties and this site does not receive or store the results.",
       checking: "Network layer: querying your public IP via {provider} and gathering WebRTC, Anthropic endpoint, and IPv6 egress results…",
       success: "Network layer: public IP retrieved via {provider}, and the WebRTC, Anthropic endpoint, and IPv6 probes were executed. Results are shown per signal; an incomplete probe does not mean the capability is unavailable. Requests were sent directly from your browser; this site does not receive or store them.",
@@ -295,7 +295,7 @@ export const detectorLocaleText: Record<LocaleCode, DetectorLocaleText> = {
       unavailable: "Lookup failed",
       enableAndRetry: "Turn on network and recheck",
     },
-    settings: { label: "Check settings", networkOn: "Network on", networkOff: "Network off", changeHint: "Changing the target clears the current result. Run the check again." },
+    settings: { label: "Check settings", close: "Close check settings", networkOn: "Network on", networkOff: "Network off", changeHint: "Changing the target clears the current result. Run the check again." },
     recommendationsTitle: "Next steps",
     recommendations: {
       high: "Multiple high-risk signals matched. If this environment differs from your account's usual region, avoid signing in or subscribing here until the mismatch is resolved.",

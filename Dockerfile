@@ -20,7 +20,7 @@ ARG NEXT_PUBLIC_SITE_URL=""
 ARG NEXT_PUBLIC_REPO_URL="https://github.com/Brilliant666/check-cc"
 ARG NEXT_PUBLIC_IP_INTEL_ENABLED="true"
 ARG NEXT_PUBLIC_IP_INTEL_ENDPOINT="https://ipwho.is/"
-ARG NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT="https://ipapi.co/json/"
+ARG NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT="https://get.geojs.io/v1/ip/geo.json,https://ipapi.co/json/"
 ARG NEXT_PUBLIC_WEBRTC_STUN_URL="stun:stun.cloudflare.com:3478"
 ARG NEXT_PUBLIC_IPV6_ENDPOINT="https://api6.ipify.org?format=json"
 

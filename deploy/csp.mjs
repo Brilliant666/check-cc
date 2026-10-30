@@ -9,7 +9,8 @@ const fallback = env.NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT;
 const endpoints = ipIntelEnabled
   ? [
       env.NEXT_PUBLIC_IP_INTEL_ENDPOINT?.trim() || "https://ipwho.is/",
-      fallback === undefined ? "https://ipapi.co/json/" : fallback.trim(),
+      // Comma-separated fallbacks, kept in sync with src/detection/config/services.ts.
+      ...(fallback === undefined ? "https://get.geojs.io/v1/ip/geo.json,https://ipapi.co/json/" : fallback).split(",").map((value) => value.trim()),
       env.NEXT_PUBLIC_IPV6_ENDPOINT?.trim() || "https://api6.ipify.org?format=json",
       // 端点可达性探测，见 src/detection/reachability.ts。
       "https://claude.ai/cdn-cgi/trace",
