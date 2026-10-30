@@ -28,6 +28,8 @@ export type WebRtcAnalysis = {
   publicAddresses: string[];
   ipv6PublicAddresses: string[];
   comparedAddresses: string[];
+  // 与 HTTP 出口同协议族但地址不同的候选，常见于多 WAN、多网卡或分流代理，只作上下文展示。
+  extraAddresses: string[];
   matchesHttp: boolean | null;
   ipv6Leak: boolean | null;
 };
@@ -135,15 +137,17 @@ export function normalizeIpAddress(address: string) {
   }
 }
 
-// 只比较同一协议族的出口地址；仅有 IPv4 出口时，公网 IPv6 候选单独作为泄漏线索报告。
+// 只比较同一协议族的出口地址；只要有一个候选等于 HTTP 出口就视为一致，其余地址作为额外出口单独报告。
+// 仅有 IPv4 出口时，公网 IPv6 候选单独作为泄漏线索报告。
 export function analyzeWebRtc(probe: WebRtcProbeResult, httpIp: string | null): WebRtcAnalysis {
   const publicAddresses = probe.publicAddresses;
   const ipv6PublicAddresses = publicAddresses.filter((address) => address.includes(":"));
   const normalizedHttp = httpIp?.trim() ? normalizeIpAddress(httpIp) : null;
   const comparedAddresses = normalizedHttp ? publicAddresses.filter((address) => address.includes(":") === normalizedHttp.includes(":")) : [];
-  const matchesHttp = normalizedHttp && comparedAddresses.length ? comparedAddresses.every((address) => normalizeIpAddress(address) === normalizedHttp) : null;
+  const matchesHttp = normalizedHttp && comparedAddresses.length ? comparedAddresses.some((address) => normalizeIpAddress(address) === normalizedHttp) : null;
+  const extraAddresses = matchesHttp ? comparedAddresses.filter((address) => normalizeIpAddress(address) !== normalizedHttp) : [];
   const ipv6Leak = normalizedHttp ? (normalizedHttp.includes(":") ? ipv6PublicAddresses.some((address) => normalizeIpAddress(address) !== normalizedHttp) : ipv6PublicAddresses.length > 0) : null;
-  return { publicAddresses, ipv6PublicAddresses, comparedAddresses, matchesHttp, ipv6Leak };
+  return { publicAddresses, ipv6PublicAddresses, comparedAddresses, extraAddresses, matchesHttp, ipv6Leak };
 }
 
 function timezoneOffset(timeZone: string, now: Date): number | null {

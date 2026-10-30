@@ -63,11 +63,12 @@ describe("buildTextReport", () => {
 
     expect(report).toContain("CheckCC · Claude 环境检测报告");
     expect(report).toContain("生成时间: 2026-10-25T00:00:00.000Z");
-    expect(report).toContain("风险分: 20%");
+    expect(report).toContain("风险分: 20 / 100");
     expect(report).toContain("可评估覆盖: 50% (1/2)");
     expect(report).toContain("命中信号: 1 / 2");
     expect(report).toContain("状态: 需要进一步确认 · 轻度风险");
-    expect(report).toContain("目标地区: 自动检测");
+    expect(report).toContain("检测地区: 自动检测");
+    expect(report).not.toContain("检测目标:");
   });
 
   it("includes weighted, unevaluated, and context signals", () => {
@@ -113,6 +114,16 @@ describe("buildJsonReport", () => {
     expect(parsed.signals[1].evaluated).toBe(false);
     expect(parsed.recommendations).toEqual(input.recommendations);
     expect(parsed.limitation).toBe(detectorLocaleText.zh.recommendations.limitation);
+  });
+
+  it("reports the detected region separately from the selected target", () => {
+    const report = buildTextReport({ ...input, regionLabel: "中国大陆", targetLabel: "自动检测" });
+    const parsed = JSON.parse(buildJsonReport({ ...input, regionLabel: "中国大陆", targetLabel: "自动检测" }));
+
+    expect(report).toContain("检测地区: 中国大陆");
+    expect(report).toContain("检测目标: 自动检测");
+    expect(parsed.region).toBe("中国大陆");
+    expect(parsed.target).toBe("自动检测");
   });
 
   it("uses an explicit network limitation when provided", () => {

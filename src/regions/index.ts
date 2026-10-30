@@ -1,37 +1,26 @@
-// CheckCC 的地区画像规则，用于定义国家、时区、语言、浏览器、设备和产品可用性风险特征。
+// CheckCC 的地区画像规则，用于定义国家、时区、语言、浏览器和设备特征；语言规则见 detection/scoring.ts。
 import type { RegionProfile } from "@/detection/types";
 
 export const REGION_PROFILES: RegionProfile[] = [
   {
     code: "cn",
     name: "中国大陆",
-    shortName: "中国",
     countries: ["CN"],
     timezones: ["Asia/Shanghai", "Asia/Urumqi", "Asia/Chongqing", "Asia/Harbin", "Asia/Kashgar"],
-    languages: ["zh-cn", "zh-hans", "zh"],
-    browserPatterns: ["micromessenger", "qqbrowser", "quark", "ucbrowser", "baidu", "miuibrowser", "huaweibrowser", "360"],
-    devicePatterns: ["huawei", "honor", "xiaomi", "redmi", "oppo", "vivo", "harmonyos", "realme", "oneplus"],
-    fontFamilies: ["Microsoft YaHei", "PingFang SC", "SimSun", "SimHei", "HarmonyOS Sans", "MiSans", "OPPO Sans"],
-    weights: { country: 34, timezone: 24, language: 18, browser: 8, device: 8, locale: 8 },
-    products: { web: "restricted", pro: "restricted", api: "restricted", payment: "restricted" },
+    browserPatterns: ["micromessenger", "qqbrowser", "quark", "ucbrowser", "baidubrowser", "bidubrowser", "baiduboxapp", "miuibrowser", "huaweibrowser", "360se", "360ee", "qihu"],
+    devicePatterns: ["huawei", "honor", "xiaomi", "redmi", "oppo", "vivo", "harmonyos", "realme", "oneplus", "miui"],
   },
   {
     code: "hk",
     name: "香港",
-    shortName: "香港",
     countries: ["HK"],
     timezones: ["Asia/Hong_Kong"],
-    languages: ["zh-hk", "zh-hant", "yue"],
     browserPatterns: [],
     devicePatterns: [],
-    fontFamilies: ["PingFang HK", "PingFang TC", "Microsoft JhengHei", "Heiti TC", "Hiragino Sans CNS", "Noto Sans CJK HK", "Noto Sans CJK TC", "Source Han Sans TC", "MingLiU", "PMingLiU"],
-    weights: { country: 34, timezone: 24, language: 18, browser: 4, device: 2, locale: 8 },
-    products: { web: "restricted", pro: "restricted", api: "restricted", payment: "restricted" },
   },
   {
     code: "ru",
     name: "俄罗斯",
-    shortName: "俄罗斯",
     countries: ["RU"],
     timezones: [
       "Europe/Kaliningrad",
@@ -62,25 +51,16 @@ export const REGION_PROFILES: RegionProfile[] = [
       "Asia/Kamchatka",
       "Asia/Anadyr",
     ],
-    languages: ["ru"],
     browserPatterns: ["yabrowser", "yandex", "mail.ru"],
     devicePatterns: [],
-    fontFamilies: ["Arial", "Times New Roman"],
-    weights: { country: 38, timezone: 26, language: 22, browser: 8, device: 2, locale: 4 },
-    products: { web: "restricted", pro: "restricted", api: "restricted", payment: "restricted" },
   },
   {
     code: "ir",
     name: "伊朗",
-    shortName: "伊朗",
     countries: ["IR"],
     timezones: ["Asia/Tehran"],
-    languages: ["fa", "fa-ir"],
     browserPatterns: [],
     devicePatterns: [],
-    fontFamilies: ["Tahoma", "Vazirmatn"],
-    weights: { country: 46, timezone: 28, language: 20, browser: 2, device: 0, locale: 4 },
-    products: { web: "restricted", pro: "restricted", api: "restricted", payment: "restricted" },
   },
 ];
 

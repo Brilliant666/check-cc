@@ -99,8 +99,8 @@ Target selection, the network toggle, and the privacy note expand inline instead
 | System timezone | 26 | Whether the system timezone matches the profile |
 | Browser language | 20 | Whether the preferred language matches the target region |
 | IP country | 20 | Optional network signal, only when the network layer is on |
-| WebRTC egress | 18 | Optional network signal; scores when public WebRTC candidates differ from the HTTP exit |
-| Regional fonts | 16 | Chinese or Traditional Chinese font matches |
+| WebRTC egress | 18 | Optional network signal; scores when no same-family public candidate equals the HTTP exit. Extra exits are shown as context |
+| Regional fonts | 16 | Chinese fonts that need a separate install. Fonts bundled with Windows / macOS / Linux (YaHei, SimSun, PingFang, etc.) are shown but not scored |
 | Language/script traits | 12 | Simplified or Traditional Chinese traits |
 | Vendor fonts | 10 | MiSans, HarmonyOS Sans, OPPO Sans, and similar |
 | Browser regional traits | 8 | WeChat, QQ, UC, Quark, and other Chinese browsers or WebViews |
@@ -114,7 +114,11 @@ Browser/app environment, device/system clues, operating system, and date/number 
 
 ### Scoring
 
-- The score is the sum of evaluated contributions, capped at 100. Unevaluated signals neither raise nor lower it.
+- The score is the sum of evaluated contributions, capped at 100 and shown as "xx / 100". It is a heuristic sum, not a probability. Unevaluated signals neither raise nor lower it.
+- Signals that measure the same thing are grouped, and a group's total contribution never exceeds its largest weight: system timezone + timezone offset (cap 26), browser language + language/script + Intl locale (cap 20), regional fonts + vendor fonts (cap 16). The browser layer tops out at 80.
+- Levels: 70 and above is high, 31–69 moderate, 1–30 light. The page, the report, and the recommendations share these thresholds.
+- Browser and device traits match whole tokens, so `360` or `vivo` no longer match build numbers or other words.
+- The report's "Detected region" is the matched profile and is recorded separately from the "Check target" the user selected.
 - Coverage is shown separately. `100% (10/10)` means all ten weighted browser signals were evaluated; with the network layer on it can reach `13/13` (10 browser signals + IP country + WebRTC egress + IP timezone).
 - When every network endpoint fails, the country signal is shown as "lookup failed / not evaluated". Coverage drops, but the missing 20-point weight is not scaled up into risk.
 - When the WebRTC probe fails, is unsupported, or yields no same-family candidate, the WebRTC signal is marked "not evaluated"; a failed probe never adds risk by itself.
@@ -409,7 +413,6 @@ Yes. Set `NEXT_PUBLIC_IP_INTEL_ENABLED=false` at build time to remove the toggle
 ### Roadmap
 
 - Add more regional profiles and real-device samples.
-- Improve how reports show the detected region.
 - Evaluate more local detection / repair entry points.
 
 ## 🤝 Contributing

@@ -21,6 +21,8 @@ export type DetectionSignalConfig = {
   source: SignalSource;
   weight: number;
   order: number;
+  // 同组信号测的是同一件事，组内贡献合计不超过组内最大权重。
+  group?: string;
 };
 
 export type DetectionServiceConfig = {

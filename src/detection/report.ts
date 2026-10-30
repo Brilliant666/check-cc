@@ -8,7 +8,9 @@ export type DetectionReportInput = {
   score: number;
   statusLabel: string;
   riskLabel: string;
+  // 检测出的地区画像；没有风险命中时为用户选择的目标。
   regionLabel: string;
+  targetLabel?: string;
   recommendations: string[];
   limitation?: string;
   generatedAt?: Date;
@@ -41,11 +43,12 @@ export function buildTextReport(input: DetectionReportInput) {
   return [
     `CheckCC · ${text.report.title}`,
     `${text.report.generatedAt}: ${reportDate(input)}`,
-    `${text.report.riskScore}: ${input.score}%`,
+    `${text.report.riskScore}: ${input.score} / 100`,
     `${text.report.coverage}: ${coverage}`,
     `${text.report.hitCount}: ${hitCount}`,
     `${text.report.status}: ${input.statusLabel} · ${input.riskLabel}`,
     `${text.report.region}: ${input.regionLabel}`,
+    ...(input.targetLabel && input.targetLabel !== input.regionLabel ? [`${text.report.target}: ${input.targetLabel}`] : []),
     "",
     text.report.signals,
     ...input.signals.map((signal) => signalLine(signal, text)),
@@ -65,6 +68,7 @@ export function buildJsonReport(input: DetectionReportInput) {
       status: input.statusLabel,
       risk: input.riskLabel,
       region: input.regionLabel,
+      target: input.targetLabel ?? input.regionLabel,
       coverage: {
         percent: summary.coverage,
         evaluated: summary.evaluatedCount,
