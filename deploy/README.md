@@ -206,8 +206,10 @@ curl -fsS "$BASE/healthz"
 for path in / /en/ /hong-kong/ /russia/ /no-such-page/; do
   curl -s -o /dev/null -w "$path %{http_code}\n" "$BASE$path"
 done
-curl -sI "$BASE/" | sed -n '1,12p'
+curl -sI "$BASE/" | sed -n '1,20p'
+curl -sI "$BASE/en" | grep -i '^location'
 docker compose ps
+docker exec checkcc id -u
 ```
 
 预期：
@@ -215,7 +217,9 @@ docker compose ps
 - `/healthz` 返回 `ok`；
 - `/`、`/en/`、`/hong-kong/`、`/russia/` 返回 200，未知路径返回 404；
 - HTML 返回 `Cache-Control: no-cache`，`/_next/static/` 资源长期缓存，并启用 gzip；
-- `docker compose ps` 显示 `healthy`；
+- 响应头里有 `Content-Security-Policy`，其中 `connect-src` 列出的是你配置的 IP 查询和 IPv6 查询地址；
+- `/en` 的 301 跳转 `Location` 是相对路径 `/en/`，不带容器内部端口；
+- `docker compose ps` 显示 `healthy`，`docker exec checkcc id -u` 输出 `101`（非 root）；
 - 重启后恢复健康：
 
 ```bash
@@ -229,6 +233,7 @@ docker inspect -f '{{.State.Health.Status}}' checkcc
 - 点击“开启网络层并重测”后，浏览器会先请求 `ipwho.is`；失败或被限流时自动回退到 `ipapi.co`，成功提示会显示实际使用的服务。
 - 同一次网络层检测还会直连 STUN、IPv6 查询接口和 Anthropic 三个探测目标（claude.ai 边缘诊断路径、www.anthropic.com、api.anthropic.com）；它们相互独立，单个探测失败只影响对应信号。claude.ai 主站受 CORP 限制，浏览器不直接探测。
 - 两个 IP 接口都失败时才会跳过 IP 信号；覆盖率下降，但风险分不会被抬高。
+- 打开浏览器开发者工具的控制台，开启网络层检测后不应出现 `Content Security Policy` 报错；如果出现，通常是自定义了 `NEXT_PUBLIC_*` 端点但没有重新构建。
 - IP 查询、STUN、IPv6 查询和端点探测都由访客浏览器直接发起，Nginx 访问日志里看不到这些第三方请求，这是正常的。
 
 ## 7. 更新、回滚和清理
@@ -241,6 +246,14 @@ git pull
 ```
 
 `.env` 会保留；项目没有数据库和持久化卷，更新只会替换静态文件和容器，通常只有很短的停机时间。更新前可以用 `git log -1` 确认版本。
+
+> **从 `9a079d7` 之前的版本升级**：容器内端口从 80 改为 8080。用本仓库的 `docker-compose.yml` 和 `deploy.sh` 部署时，映射已同步修改，宿主机端口仍由 `CHECKCC_PORT` 决定，不需要额外操作。如果你的反向代理直接连接容器的 80 端口（例如在同一 Docker 网络里按服务名 `checkcc:80` 转发），需要改成 `checkcc:8080`。
+
+更新前可以给当前镜像打一个回滚标签，出问题时不用重新构建就能退回：
+
+```bash
+docker tag checkcc:local checkcc:rollback-$(git rev-parse --short HEAD)
+```
 
 需要回滚时，先确认工作区没有未提交修改，再切换到目标提交并重新构建：
 
@@ -313,7 +326,13 @@ curl -v "http://127.0.0.1:${PORT}/healthz"
 
 版本号只是这次验证的环境记录；请按 Docker 官方支持范围选择版本。本次验证未包含域名、TLS 和公网暴露配置。
 
-这次验证之后，容器改为以非 root 用户运行的 `nginx-unprivileged` 镜像（容器内监听 8080），根文件系统只读，并去掉了全部 Linux capabilities。
+2026-10-30 在同一环境上验证了加固后的镜像（`9a079d7`）：
+
+- 按 digest 锁定的基础镜像拉取正常，构建通过；
+- 容器以 uid 101 运行，根文件系统只读、去掉全部 capabilities 后健康检查为 `healthy`，日志无写入错误；
+- 四语言路由、`/healthz`、`robots.txt`、`sitemap.xml` 返回 200，未知路径返回 404，RSC 预取文件（文件名含 `!`）返回 200；
+- HTML 和 `/_next/static/` 都带 CSP 与其他安全头；`/en` 跳转为相对路径 `/en/`；
+- 无头 Chrome 开启网络层完成检测，CSP 违规 0 次。
 
 ### 容器加固
 
@@ -328,5 +347,5 @@ curl -v "http://127.0.0.1:${PORT}/healthz"
 - 本项目是纯静态站点，容器内没有 Node 服务端运行时，也没有数据库。
 - IP 查询由访客浏览器直接请求第三方服务；服务器只托管静态文件。
 - 页面中的站点 URL、canonical 和 sitemap 在构建时写入；换域名后需要重新构建。
-- 容器以 Nginx 默认用户运行，未挂载宿主机目录，不需要额外文件权限。
+- 容器以非 root 用户（uid 101）运行，根文件系统只读，未挂载宿主机目录，不需要额外文件权限。
 - 如果不想使用 Docker，也可以把 `out/` 部署到任意静态托管，参见主 README 的“手动静态托管”。

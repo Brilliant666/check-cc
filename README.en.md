@@ -58,13 +58,13 @@ The landing page exposes the check immediately. Auto detection is the default, a
 
 ![CheckCC browser-only result](./docs/images/readme/detection-browser-only-en.png)
 
-The result lists matched signals, weight contributions, the risk score, and coverage. The example above is a mainland-China-style environment with `10/10` coverage and no IP lookup sent to a third party; the score depends on which signals match.
+The result lists matched signals, weight contributions, the risk score, and coverage. The example above is a mainland-China-style Windows environment: the timezone and browser language match, coverage is `10/10`, and no IP lookup is sent to a third party. The YaHei and SimSun fonts bundled with Windows are shown as context only. Language variant and Intl locale share a group with browser language, which is already at the group cap, so they show +0. The score depends on which signals match.
 
 ### 🌐 Network layer enabled
 
 ![CheckCC result with network layer](./docs/images/readme/detection-network-en.png)
 
-After "Turn on network and recheck", the browser queries `ipwho.is` directly for your public IP. If the primary endpoint fails or is rate-limited, it automatically falls back to `ipapi.co`, and the notice shows which service was actually used. The same run gathers WebRTC egress candidates through STUN, queries the direct IPv6 exit, and probes the three Anthropic endpoints, then cross-checks them against the HTTP exit and IP timezone. Weighted signals still top out at `13/13`; the signal panel shows at most 29 rows (14 browser + 15 network), of which only IP country, WebRTC egress, and IP timezone are weighted. When WebRTC is unsupported, STUN is blocked, or no comparable candidate exists, those signals are marked "not evaluated" and coverage drops; endpoint or IPv6 failures only affect their own zero-weight signals.
+The screenshot uses example data: the IP is a public DNS address and WebRTC shows as unsupported, so it does not represent a real visitor. After "Turn on network and recheck", the browser queries `ipwho.is` directly for your public IP. If the primary endpoint fails or is rate-limited, it automatically falls back to `ipapi.co`, and the notice shows which service was actually used. The same run gathers WebRTC egress candidates through STUN, queries the direct IPv6 exit, and probes the three Anthropic endpoints, then cross-checks them against the HTTP exit and IP timezone. Weighted signals still top out at `13/13`; the signal panel shows at most 29 rows (14 browser + 15 network), of which only IP country, WebRTC egress, and IP timezone are weighted. When WebRTC is unsupported, STUN is blocked, or no comparable candidate exists, those signals are marked "not evaluated" and coverage drops; endpoint or IPv6 failures only affect their own zero-weight signals.
 
 ### 🇭🇰 Hong Kong profile
 
@@ -203,12 +203,13 @@ review-check-cc/
 │  │  ├─ robots.ts                # robots.txt
 │  │  └─ sitemap.ts               # sitemap.xml
 │  ├─ components/
-│  │  ├─ detector/Detector.tsx    # Detection flow, settings, report export
+│  │  ├─ detector/Detector.tsx    # Detection flow, settings, report export UI
 │  │  ├─ home/HomeContent.tsx     # Home page content and structured data
 │  │  └─ layout/                  # Header, footer, mobile menu
 │  ├─ detection/
-│  │  ├─ client-engine.ts         # Browser sampling and signal scoring
-│  │  ├─ scoring.ts               # Regional profile matching
+│  │  ├─ client-engine.ts         # Browser sampling, signal scoring, group caps
+│  │  ├─ scoring.ts               # Regional profile matching, risk levels, token matching
+│  │  ├─ merge-signals.ts         # Merges browser signals and network results into the displayed list
 │  │  ├─ ip-intel.ts              # Optional network lookup and parsing
 │  │  ├─ reachability.ts          # Claude endpoint reachability and latency probe
 │  │  ├─ ipv6.ts                  # Direct IPv6 egress lookup and same-family comparison
@@ -220,8 +221,8 @@ review-check-cc/
 │  ├─ i18n/                       # Four-language copy and metadata
 │  └─ regions/                    # Mainland China / Hong Kong / Russia / Iran
 ├─ docs/images/                   # README screenshots
-├─ deploy/                        # VPS Docker deploy script and Nginx config
-├─ Dockerfile                     # Multi-stage build: static export + Nginx
+├─ deploy/                        # VPS deploy script, Nginx config, and the csp.mjs CSP generator
+├─ Dockerfile                     # Multi-stage build: static export + non-root Nginx (images pinned by digest)
 ├─ docker-compose.yml             # One-command VPS configuration
 ├─ .env.example                   # Deployment environment template
 ├─ shell/deploy-restart-hot.sh    # Local one-command launcher
@@ -344,14 +345,14 @@ Each IP endpoint times out after 3500 ms, WebRTC candidate gathering after 2500 
 ```bash
 pnpm lint        # ESLint
 pnpm typecheck   # TypeScript
-pnpm test        # Vitest, 128 tests
+pnpm test        # Vitest, 148 tests
 pnpm check       # lint + typecheck + test
 pnpm build       # Static export
 ```
 
-GitHub Actions runs lint, type checking, unit tests, and a static build on push and pull requests.
+GitHub Actions runs lint, type checking, unit tests, and a static build on push and pull requests; the actions are pinned to commit SHAs. CI does not build the Docker image, so container changes need a separate check on a machine with Docker.
 
-Tests cover score non-inflation under partial coverage, unknown signals, zero-weight signals, IP classification, IP lookup parsing/timeouts/failures, ICE candidate parsing, WebRTC vs. HTTP egress comparison, IPv6 candidates, timezone-offset comparison, country-profile matching, Hong Kong vs. mainland attribution, endpoint reachability timeouts and summaries, direct IPv6 egress parsing and same-family comparison, egress-type heuristics, date/number format context, report export, and locale copy completeness.
+Tests cover score non-inflation under partial coverage, unknown signals, zero-weight signals, IP classification, IP lookup parsing/timeouts/failures, ICE candidate parsing, WebRTC vs. HTTP egress comparison, IPv6 candidates, timezone-offset comparison, country-profile matching, Hong Kong vs. mainland attribution, endpoint reachability timeouts and summaries, direct IPv6 egress parsing and same-family comparison, egress-type heuristics, date/number format context, report export, and locale copy completeness; plus OS-bundled Chinese fonts not being scored, token matching for browser/device traits, correlated-signal group caps, risk-level thresholds, the report recording the detected region separately from the check target, WebRTC treating multiple exits as consistent, and merging network results (`mergeSignals`).
 
 ## 🗺️ Routes
 
@@ -408,7 +409,17 @@ Yes. Set `NEXT_PUBLIC_IP_INTEL_ENABLED=false` at build time to remove the toggle
 - Added date, time, and number format context; network-toggle copy and privacy notes now cover the new third-party requests.
 - WebRTC probing stays off with the network layer; failures or unsupported browsers only reduce coverage and never change the existing score.
 - Updated copy in all four languages, READMEs, and privacy notes.
-- 128 unit tests, type checking, lint, and static build pass.
+- Scoring fix: Chinese fonts bundled with Windows / macOS / Linux are shown but not scored, so ordinary users outside China are no longer flagged.
+- Scoring fix: three groups of correlated signals (timezone, language, fonts) are capped at their largest weight, so the browser layer tops out at 80. The score is shown as "xx / 100" instead of a percentage.
+- Scoring fix: the page, report, and recommendations share one set of thresholds (70 / 31); the unused legacy scoring path was removed.
+- Browser and device traits match whole tokens, so `360` or `vivo` no longer match build numbers or other words.
+- WebRTC counts as consistent when any same-family candidate equals the HTTP exit; other exits are shown as context.
+- Egress type checks specific provider names before generic keywords, and now recognizes Chinanet, CMNET, and Unicom.
+- The report's "Detected region" is the matched profile; the "Check target" the user selected is recorded separately.
+- The network-result merge moved out of the detector component into a unit-tested `mergeSignals`; Russian summary copy moved into the locale table.
+- Deployment hardening: the runtime image is the non-root `nginx-unprivileged` (listening on 8080 in the container), run read-only with all capabilities dropped. A build-time CSP limits `connect-src` to the third-party origins actually used.
+- Base images are pinned by digest and CI actions by commit SHA.
+- 148 unit tests, type checking, lint, and static build pass; the new image was verified on Debian 13.
 
 ### Roadmap
 
