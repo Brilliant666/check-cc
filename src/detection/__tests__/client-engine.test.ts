@@ -354,7 +354,8 @@ describe("collectBrowserSignals", () => {
 
     expect(byId.timezone.contribution).toBe(26);
     expect(byId.language.contribution).toBe(20);
-    expect(byId.locale.contribution).toBe(6);
+    // locale shares the language group cap, which language already fills.
+    expect(byId.locale.contribution).toBe(0);
     expect(byId.domesticBrowser.contribution).toBe(8);
     expect(byId.domesticDevice.contribution).toBe(0);
     expect(byId.emojiStyle.contribution).toBe(2);
@@ -408,8 +409,9 @@ describe("collectBrowserSignals", () => {
 
     expect(byId.timezone.contribution).toBe(26);
     expect(byId.language.contribution).toBe(20);
-    expect(byId.languageVariant.contribution).toBe(12);
-    expect(byId.locale.contribution).toBe(6);
+    expect(byId.languageVariant.contribution).toBe(0);
+    expect(byId.locale.contribution).toBe(0);
+    expect(summarizeSignals(result.signals).score).toBe(48);
   });
 
   it("identifies a typical Hong Kong browser profile as Hong Kong", () => {
@@ -426,12 +428,14 @@ describe("collectBrowserSignals", () => {
     expect(result.matchedRegion).toBe("hk");
     expect(byId.timezone.contribution).toBe(16);
     expect(byId.language.contribution).toBe(10);
-    expect(byId.languageVariant.contribution).toBe(12);
-    expect(byId.chineseFonts.contribution).toBe(8);
-    expect(byId.locale.contribution).toBe(3);
+    expect(byId.languageVariant.contribution).toBe(10);
+    // Microsoft JhengHei ships with Windows, so it is shown but not scored.
+    expect(byId.chineseFonts.contribution).toBe(0);
+    expect(byId.chineseFonts.value).toContain("Microsoft JhengHei");
+    expect(byId.locale.contribution).toBe(0);
     expect(byId.timezoneOffset.contribution).toBe(3);
     expect(byId.emojiStyle.contribution).toBe(2);
-    expect(summarizeSignals(result.signals).score).toBe(54);
+    expect(summarizeSignals(result.signals).score).toBe(41);
   });
 
   it("keeps a simplified-Chinese browser on the mainland profile", () => {
@@ -448,7 +452,54 @@ describe("collectBrowserSignals", () => {
     expect(result.matchedRegion).toBe("cn");
     expect(byId.timezone.contribution).toBe(16);
     expect(byId.language.contribution).toBe(20);
-    expect(byId.locale.contribution).toBe(6);
+    expect(byId.locale.contribution).toBe(0);
+  });
+
+  it.each([
+    ["Windows", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.6778.360 Safari/537.36", "Windows", ["Microsoft YaHei", "SimSun", "SimHei", "Microsoft JhengHei"]],
+    ["macOS", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15", "macOS", ["PingFang SC", "Hiragino Sans GB", "STHeiti", "PingFang TC"]],
+  ])("does not score the Chinese fonts bundled with a US %s install", (_os, userAgent, platform, fonts) => {
+    stubCanvas(fonts);
+    vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(240);
+    const result = collectBrowserSignals("auto", detectorLocaleText.en, detectionConfig, { languages: ["en-US"], timezone: "America/New_York", locale: "en-US", userAgent, platform, brands: "Google Chrome" });
+    const byId = Object.fromEntries(result.signals.map((item) => [item.id, item]));
+
+    expect(byId.chineseFonts.contribution).toBe(0);
+    expect(byId.domesticBrowser.contribution).toBe(0);
+    expect(result.matchedRegion).toBeNull();
+    expect(summarizeSignals(result.signals).score).toBe(0);
+  });
+
+  it("scores Chinese fonts that need a separate install", () => {
+    stubCanvas(["Microsoft YaHei", "Source Han Sans SC", "MiSans", "HarmonyOS Sans"]);
+    const result = collectBrowserSignals("cn", detectorLocaleText.zh, detectionConfig, { languages: ["en-US"], timezone: "America/New_York", locale: "en-US", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120", platform: "Windows", brands: "Google Chrome" });
+    const byId = Object.fromEntries(result.signals.map((item) => [item.id, item]));
+
+    expect(byId.chineseFonts.contribution).toBe(16);
+    // vendorFonts shares the font group cap with chineseFonts.
+    expect(byId.vendorFonts.contribution).toBe(0);
+  });
+
+  it("caps correlated signals at the group's largest weight", () => {
+    stubCanvas();
+    vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(-480);
+    const result = collectBrowserSignals("cn", detectorLocaleText.zh, detectionConfig, { languages: ["zh-CN"], timezone: "Asia/Shanghai", locale: "zh-CN", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120", platform: "Windows", brands: "Google Chrome" });
+    const byId = Object.fromEntries(result.signals.map((item) => [item.id, item]));
+
+    expect(byId.timezone.contribution + byId.timezoneOffset.contribution).toBe(26);
+    expect(byId.language.contribution + byId.languageVariant.contribution + byId.locale.contribution).toBe(20);
+  });
+
+  it("keeps the maximum possible browser score at or below 100", () => {
+    const caps = new Map<string, number>();
+    let total = 0;
+    for (const item of Object.values(detectionConfig.signals)) {
+      if (!item.enabled || item.weight <= 0 || item.source !== "browser") continue;
+      if (!item.group) total += item.weight;
+      else caps.set(item.group, Math.max(caps.get(item.group) ?? 0, item.weight));
+    }
+    total += [...caps.values()].reduce((sum, value) => sum + value, 0);
+    expect(total).toBeLessThanOrEqual(100);
   });
 
   it("collects date and number formatting as a context signal", () => {

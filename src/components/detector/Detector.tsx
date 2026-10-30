@@ -21,7 +21,7 @@ import { compareIpv6Egress, probeIpv6Egress, type Ipv6ProbeResult } from "@/dete
 import { classifyIpType } from "@/detection/ip-type";
 import { defaultReachabilityTargets, probeReachability, reachabilityLatencyLevel, summarizeReachability, type ReachabilityResult } from "@/detection/reachability";
 import { runDetection, type DetectionRunResult } from "@/detection/runner";
-import { countryRisk } from "@/detection/scoring";
+import { countryRisk, riskLevel } from "@/detection/scoring";
 import { messages, type LocaleCode } from "@/i18n/messages";
 import { cgClaudeRepoUrl } from "@/site-config";
 import { FixCta } from "@/components/detector/FixCta";
@@ -30,12 +30,14 @@ type Props = { lang?: "zh" | "en"; locale?: LocaleCode };
 
 function ScoreRing({ score, checked, text }: { score: number; checked: boolean; text: DetectorLocaleText }) {
   const deg = checked ? Math.max(0, Math.min(100, score)) * 3.6 : 0;
-  const ringColor = !checked ? "#d6d3d1" : score === 0 ? "#059669" : score >= 70 ? "#dc2626" : score >= 31 ? "#d97757" : "#f59e0b";
+  const level = riskLevel(score);
+  const ringColor = !checked ? "#d6d3d1" : level === "none" ? "#059669" : level === "high" ? "#dc2626" : level === "medium" ? "#d97757" : "#f59e0b";
   return (
     <div className="relative grid size-44 place-items-center rounded-full bg-white shadow-2xl shadow-red-950/10" style={{ background: `conic-gradient(${ringColor} ${deg}deg, #e7e5df 0deg)` }}>
       <div className="grid h-[8.5rem] w-[8.5rem] place-items-center rounded-full bg-white shadow-inner">
         <div className="text-center">
-          <div className="text-5xl font-black text-[#0b1220]">{checked ? `${score}%` : "--"}</div>
+          <div className="text-5xl font-black text-[#0b1220]">{checked ? score : "--"}</div>
+          {checked && <div className="text-xs font-bold text-stone-400">/ 100</div>}
           <div className="text-xs font-bold tracking-[0.2em] text-stone-500">{checked ? text.risk.scoreLabel : text.risk.waiting}</div>
         </div>
       </div>
@@ -184,7 +186,8 @@ export function Detector({ locale = "zh" }: Props) {
           } else {
             webrtcScore = webrtcAnalysis?.matchesHttp ? 0 : 1;
             webrtcEvaluated = true;
-            webrtcValue = `${addresses} · ${webrtcScore ? detectorText.signalValues.webrtcMismatch : detectorText.signalValues.webrtcMatch}`;
+            const extra = webrtcAnalysis?.extraAddresses.length ? ` · ${detectorText.signalValues.exitExtra.replace("{addresses}", webrtcAnalysis.extraAddresses.join(", "))}` : "";
+            webrtcValue = `${addresses} · ${webrtcScore ? detectorText.signalValues.webrtcMismatch : detectorText.signalValues.webrtcMatch}${extra}`;
           }
         }
 
@@ -317,19 +320,20 @@ export function Detector({ locale = "zh" }: Props) {
   const coverage = scoreSummary.coverage;
   const fullCoverage = scoreSummary.totalCount > 0 && scoreSummary.evaluatedCount === scoreSummary.totalCount;
   const animatedScore = loading ? Math.round((rawScore * progress) / 100) : rawScore;
-  const status = rawScore >= 70 ? "restricted" : rawScore >= 31 ? "possibly_supported" : rawScore > 0 ? "unknown" : fullCoverage ? "supported" : "unknown";
+  const level = riskLevel(rawScore);
+  const status = level === "high" ? "restricted" : level === "medium" ? "possibly_supported" : level === "low" ? "unknown" : fullCoverage ? "supported" : "unknown";
   const pageRegionCode: RegionCode = region !== "auto" ? region : locale === "zh-HK" ? "hk" : locale === "ru" ? "ru" : "cn";
   const networkMatchedRegion = networkUsed && networkIntel ? countryRisk(networkIntel.countryCode, region).matchedRegion : null;
   const detectedRegionCode: RegionCode = browserResult?.matchedRegion ?? networkMatchedRegion ?? pageRegionCode;
   const pageRegion = detectorText.regions[detectedRegionCode];
   const russianSummaryRegions: Record<RegionCode, string> = { auto: "российской", cn: "китайской", hk: "гонконгской", ru: "российской", ir: "иранской" };
   const suspectedRegion = locale === "ru" ? russianSummaryRegions[detectedRegionCode] : pageRegion;
-  const confidenceText = rawScore >= 70 ? detectorText.confidence.high : rawScore >= 31 ? detectorText.confidence.medium : rawScore > 0 ? detectorText.confidence.low : detectorText.confidence.safe;
+  const confidenceText = level === "none" ? detectorText.confidence.safe : detectorText.confidence[level];
   const environmentSuffix = locale === "ru" ? "среды" : copy.environmentSuffix;
   const limitationText = !networkUsed ? detectorText.recommendations.limitation : networkState === "ok" ? detectorText.recommendations.limitationNetwork : detectorText.recommendations.limitationNetworkFailed;
   const recommendationList = [
     coverage < 100 ? detectorText.recommendations.incomplete : null,
-    rawScore >= 70 ? detectorText.recommendations.high : rawScore >= 31 ? detectorText.recommendations.medium : detectorText.recommendations.low,
+    level === "none" ? detectorText.recommendations.low : detectorText.recommendations[level],
     limitationText,
   ].filter((item): item is string => Boolean(item));
 
@@ -340,7 +344,8 @@ export function Detector({ locale = "zh" }: Props) {
     score: rawScore,
     statusLabel: detectorText.status[status],
     riskLabel,
-    regionLabel: detectorText.regions[region],
+    regionLabel: rawScore > 0 ? pageRegion : detectorText.regions[region],
+    targetLabel: detectorText.regions[region],
     recommendations: recommendationList,
     limitation: limitationText,
   });
@@ -370,8 +375,9 @@ export function Detector({ locale = "zh" }: Props) {
 
   const hasChecked = progress === 100;
   const ringActive = loading || progress > 0;
-  const riskLabel = !ringActive ? detectorText.risk.waiting : !hasChecked ? detectorText.risk.checking : animatedScore === 0 ? (fullCoverage ? detectorText.risk.supported : detectorText.risk.unknown) : animatedScore >= 70 ? detectorText.risk.blocked : animatedScore >= 31 ? detectorText.risk.high : detectorText.risk.light;
-  const riskLabelClass = !ringActive ? "bg-stone-100 text-stone-500" : !hasChecked ? "bg-blue-50 text-blue-600" : animatedScore === 0 ? "bg-emerald-50 text-emerald-700" : animatedScore >= 70 ? "bg-red-50 text-red-600" : animatedScore >= 31 ? "bg-orange-50 text-orange-700" : "bg-amber-50 text-amber-700";
+  const animatedLevel = riskLevel(animatedScore);
+  const riskLabel = !ringActive ? detectorText.risk.waiting : !hasChecked ? detectorText.risk.checking : animatedLevel === "none" ? (fullCoverage ? detectorText.risk.supported : detectorText.risk.unknown) : animatedLevel === "high" ? detectorText.risk.blocked : animatedLevel === "medium" ? detectorText.risk.high : detectorText.risk.light;
+  const riskLabelClass = !ringActive ? "bg-stone-100 text-stone-500" : !hasChecked ? "bg-blue-50 text-blue-600" : animatedLevel === "none" ? "bg-emerald-50 text-emerald-700" : animatedLevel === "high" ? "bg-red-50 text-red-600" : animatedLevel === "medium" ? "bg-orange-50 text-orange-700" : "bg-amber-50 text-amber-700";
   const networkNoteTemplate = !networkUsed
     ? detectorText.network.disabled
     : !hasChecked
@@ -597,7 +603,7 @@ export function Detector({ locale = "zh" }: Props) {
                   </div>
                   <div className="mt-2 text-2xl md:mt-0 md:inline md:text-3xl">
                     <span className="text-stone-600">{copy.riskPrefix}</span>
-                    <span className="mx-1 text-red-600">{animatedScore}%</span>
+                    <span className="mx-1 text-red-600">{animatedScore} / 100</span>
                     <span className="text-stone-400">·</span>
                     <span className="ml-2 text-[#c05f3c]">{detectorText.status[status]}</span>
                   </div>

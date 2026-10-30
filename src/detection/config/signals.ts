@@ -2,16 +2,16 @@
 import type { DetectionSignalConfig } from "./types";
 
 export const signalConfig: Record<string, DetectionSignalConfig> = {
-  timezone: { enabled: true, labelKey: "timezone", source: "browser", weight: 26, order: 10 },
-  language: { enabled: true, labelKey: "language", source: "browser", weight: 20, order: 20 },
-  languageVariant: { enabled: true, labelKey: "languageVariant", source: "browser", weight: 12, order: 30 },
-  chineseFonts: { enabled: true, labelKey: "chineseFonts", source: "browser", weight: 16, order: 40 },
-  vendorFonts: { enabled: true, labelKey: "vendorFonts", source: "browser", weight: 10, order: 50 },
+  timezone: { enabled: true, labelKey: "timezone", source: "browser", weight: 26, order: 10, group: "timezone" },
+  language: { enabled: true, labelKey: "language", source: "browser", weight: 20, order: 20, group: "language" },
+  languageVariant: { enabled: true, labelKey: "languageVariant", source: "browser", weight: 12, order: 30, group: "language" },
+  chineseFonts: { enabled: true, labelKey: "chineseFonts", source: "browser", weight: 16, order: 40, group: "fonts" },
+  vendorFonts: { enabled: true, labelKey: "vendorFonts", source: "browser", weight: 10, order: 50, group: "fonts" },
   domesticBrowser: { enabled: true, labelKey: "domesticBrowser", source: "browser", weight: 8, order: 60 },
   domesticDevice: { enabled: true, labelKey: "domesticDevice", source: "browser", weight: 6, order: 70 },
-  locale: { enabled: true, labelKey: "locale", source: "browser", weight: 6, order: 80 },
+  locale: { enabled: true, labelKey: "locale", source: "browser", weight: 6, order: 80, group: "language" },
   intlFormat: { enabled: true, labelKey: "intlFormat", source: "browser", weight: 0, order: 85 },
-  timezoneOffset: { enabled: true, labelKey: "timezoneOffset", source: "browser", weight: 4, order: 90 },
+  timezoneOffset: { enabled: true, labelKey: "timezoneOffset", source: "browser", weight: 4, order: 90, group: "timezone" },
   emojiStyle: { enabled: true, labelKey: "emojiStyle", source: "browser", weight: 4, order: 100 },
   country: { enabled: true, labelKey: "country", source: "network", weight: 20, order: 200 },
   webrtc: { enabled: true, labelKey: "webrtc", source: "network", weight: 18, order: 205 },

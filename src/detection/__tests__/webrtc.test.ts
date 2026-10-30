@@ -76,6 +76,7 @@ describe("analyzeWebRtc", () => {
       publicAddresses: ["203.0.113.5"],
       ipv6PublicAddresses: [],
       comparedAddresses: ["203.0.113.5"],
+      extraAddresses: [],
       matchesHttp: true,
       ipv6Leak: false,
     });
@@ -86,6 +87,13 @@ describe("analyzeWebRtc", () => {
 
     expect(result.matchesHttp).toBe(false);
     expect(result.ipv6Leak).toBe(false);
+  });
+
+  it("treats one matching candidate as consistent and reports the other egress as context", () => {
+    const result = analyzeWebRtc(probe(["203.0.113.5", "198.51.100.7"]), "203.0.113.5");
+
+    expect(result.matchesHttp).toBe(true);
+    expect(result.extraAddresses).toEqual(["198.51.100.7"]);
   });
 
   it("ignores IPv6 candidates when the HTTP exit is IPv4 but reports the separate egress", () => {
@@ -108,7 +116,7 @@ describe("analyzeWebRtc", () => {
 
   it("leaves the comparison unknown without a same-family candidate or HTTP IP", () => {
     expect(analyzeWebRtc(probe(["2001:db8::1"]), "203.0.113.5").matchesHttp).toBeNull();
-    expect(analyzeWebRtc(probe(["203.0.113.5"]), null)).toEqual({ publicAddresses: ["203.0.113.5"], ipv6PublicAddresses: [], comparedAddresses: [], matchesHttp: null, ipv6Leak: null });
+    expect(analyzeWebRtc(probe(["203.0.113.5"]), null)).toEqual({ publicAddresses: ["203.0.113.5"], ipv6PublicAddresses: [], comparedAddresses: [], extraAddresses: [], matchesHttp: null, ipv6Leak: null });
     expect(analyzeWebRtc(probe([]), "203.0.113.5").matchesHttp).toBeNull();
   });
 });

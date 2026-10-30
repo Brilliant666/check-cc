@@ -19,8 +19,21 @@ describe("classifyIpType", () => {
     expect(classifyIpType({ isp: "Chunghwa Telecom" })).toBe("carrier");
   });
 
-  it("prefers residential matches and falls back to unknown", () => {
-    expect(classifyIpType({ org: "Comcast Cable", isp: "Amazon AWS" })).toBe("residential");
+  it("classifies Chinanet and other mainland carrier names", () => {
+    expect(classifyIpType({ asn: "AS4134", org: "Chinanet" })).toBe("carrier");
+    expect(classifyIpType({ org: "CHINA UNICOM China169 Backbone" })).toBe("carrier");
+  });
+
+  it("lets specific provider names win over generic keywords", () => {
+    expect(classifyIpType({ org: "Comcast Cable", isp: "Amazon AWS" })).toBe("datacenter");
+    expect(classifyIpType({ org: "China Telecom Broadband" })).toBe("carrier");
+    expect(classifyIpType({ org: "Example Cloud Services" })).toBe("unknown");
+    expect(classifyIpType({ org: "Example Server Network" })).toBe("unknown");
+    expect(classifyIpType({ org: "Example Hosting Ltd" })).toBe("datacenter");
+    expect(classifyIpType({ org: "Orangeburg Telecom" })).toBe("unknown");
+  });
+
+  it("falls back to unknown", () => {
     expect(classifyIpType({ asn: "AS64500", org: "Example Network" })).toBe("unknown");
     expect(classifyIpType({})).toBe("unknown");
   });
