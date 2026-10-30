@@ -173,7 +173,7 @@
 ![CheckCC 隐私说明](./docs/images/readme/privacy.png)
 
 - 检测不需要登录 Claude，不读取账号、密码、Cookie 或聊天内容。
-- 网络层默认关闭；默认检测只使用浏览器信号，不向第三方发送 IP 查询、STUN、IPv6 查询或 Anthropic 端点请求。
+- 网络层默认关闭；默认检测只使用浏览器信号，不向第三方发送 IP 查询、STUN、IPv6 查询或 Anthropic 端点请求。自部署时可以用 `NEXT_PUBLIC_NETWORK_LAYER_DEFAULT=on` 改成默认开启，这时页面的风险信号说明会改为提示“本站默认开启网络层”，访客仍可在检测设置里关闭。
 - 开启网络层时，浏览器直接请求配置的第三方 IP 地理服务（默认 `ipwho.is`，失败时依次回退到 `get.geojs.io` 和 `ipapi.co`），通过默认的 `stun.cloudflare.com:3478` 收集 WebRTC 候选，向 IPv6 专用接口（默认 `api6.ipify.org`）查询直连出口，并直连 `claude.ai` 边缘诊断路径、`www.anthropic.com` 与 `api.anthropic.com`。claude.ai 主站因 CORP 响应头无法被浏览器跨域探测，因此不请求主站页面。实际被请求到的服务会看到你的公网 IP。请求不经过本站服务器，本站不接收、不转发、不存储查询结果。成功提示会显示本次实际使用的 IP 查询服务。
 - 某个 IP 查询服务返回 429（限流）后，浏览器会在本次会话的 `sessionStorage` 里记下它的主机名和 1 小时的冷却截止时间，期间直接跳过它。这里只存主机名和时间，不存 IP 或查询结果；关闭标签页后清除。查询结果本身不缓存，每次检测查的都是当前出口。
 - 端点探测使用 `no-cors` 和 `cache: "no-store"`，不携带 Cookie、不发送来源页面，也不读取响应内容；它只能说明浏览器网络能否完成请求，不代表账号或地区可用。
@@ -316,7 +316,8 @@ pnpm build
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | 设为 `false` 时彻底关闭网络层，界面不显示开关，也不发送 IP 查询、STUN、IPv6 查询或端点探测。设为 `true` 只提供按需开启的选项，首次检测仍默认不请求 IP |
+| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | 设为 `false` 时彻底关闭网络层，界面不显示开关，也不发送 IP 查询、STUN、IPv6 查询或端点探测。设为 `true` 提供网络层开关；是否默认勾选由下一项决定 |
+| `NEXT_PUBLIC_NETWORK_LAYER_DEFAULT` | `off` | 设为 `on` 时网络层开关默认勾选，访客点击检测就会请求 IP 查询、STUN、IPv6 查询和端点探测，不需要额外操作；访客仍可在检测设置里取消。`NEXT_PUBLIC_IP_INTEL_ENABLED=false` 时此项无效 |
 | `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | 主查询接口，必须是支持 CORS 的 HTTPS 接口；浏览器会直接请求它 |
 | `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://get.geojs.io/v1/ip/geo.json,https://ipapi.co/json/` | 主接口失败、超时或被限流时按顺序尝试的备用接口，多个用英文逗号分隔；设为空字符串可关闭回退。成功提示显示实际使用的服务 |
 | `NEXT_PUBLIC_WEBRTC_STUN_URL` | `stun:stun.cloudflare.com:3478` | 网络层开启时使用的 STUN 地址；必须支持 WebRTC，浏览器会直接连接它。修改后需要重新构建 |
@@ -372,7 +373,7 @@ GitHub Actions 会在 push 和 pull request 时执行 lint、类型检查、单�
 
 ### 1. 第一次检测没有查询 IP，是正常的吗？
 
-正常。网络层默认关闭，首次检测只使用浏览器信号，覆盖率通常显示 `10/10`。如果希望补充 IP 国家、WebRTC 出口、Claude 端点可达性、IPv6 直连出口和 IP 时区信号，可以点击结果下方的“开启网络层并重测”。
+正常。网络层默认关闭，首次检测只使用浏览器信号，覆盖率通常显示 `10/10`。（站点用 `NEXT_PUBLIC_NETWORK_LAYER_DEFAULT=on` 构建时，第一次检测就会查询 IP。）如果希望补充 IP 国家、WebRTC 出口、Claude 端点可达性、IPv6 直连出口和 IP 时区信号，可以点击结果下方的“开启网络层并重测”。
 
 ### 2. 为什么香港 IP 没有单独计分？
 

@@ -136,6 +136,7 @@ CHECKCC_BIND=127.0.0.1 CHECKCC_PORT=18081 ./deploy/deploy.sh
 | `NEXT_PUBLIC_SITE_URL` | 空 | 构建时 | 站点对外地址，例如 `https://check.example.com`。设置后才生成 canonical、hreflang、OG URL 和 sitemap；为空时这些字段不输出 |
 | `NEXT_PUBLIC_REPO_URL` | 本仓库 | 构建时 | 页头、页脚和源码入口使用的 GitHub 地址 |
 | `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | 构建时 | `false` 时彻底关闭网络层，界面不显示开关，也不发送 IP 查询、STUN、Anthropic 端点探测或 IPv6 查询 |
+| `NEXT_PUBLIC_NETWORK_LAYER_DEFAULT` | `off` | 构建时 | `on` 时网络层开关默认勾选，访客点击检测就会把 IP 发给上述第三方服务；访客仍可在检测设置里取消。页面的风险信号说明会同步改为“本站默认开启网络层” |
 | `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | 构建时 | 浏览器直连的主 CORS IP 查询接口，必须是 HTTPS |
 | `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://get.geojs.io/v1/ip/geo.json,https://ipapi.co/json/` | 构建时 | 主接口失败、超时或被限流时按顺序尝试，多个用英文逗号分隔；设为空字符串可关闭回退。成功提示会显示实际使用的服务 |
 | `NEXT_PUBLIC_WEBRTC_STUN_URL` | `stun:stun.cloudflare.com:3478` | 构建时 | 网络层开启时用于收集 WebRTC 出口候选的 STUN 地址；浏览器会直接连接它 |
@@ -231,7 +232,7 @@ docker inspect -f '{{.State.Health.Status}}' checkcc
 
 浏览器验收时注意：
 
-- 网络层默认关闭；首次检测只使用浏览器信号，不发送 IP 查询。
+- 网络层默认关闭；首次检测只使用浏览器信号，不发送 IP 查询。如果 `.env` 里设了 `NEXT_PUBLIC_NETWORK_LAYER_DEFAULT=on`，打开检测设置时网络层开关应已勾选，首次检测就会请求 IP 查询。
 - 点击“开启网络层并重测”后，浏览器会先请求 `ipwho.is`；失败或被限流时依次尝试 `get.geojs.io` 和 `ipapi.co`，成功提示会显示实际使用的服务。被限流的接口在本次浏览会话内会暂时跳过 1 小时。
 - 同一次网络层检测还会直连 STUN、IPv6 查询接口和 Anthropic 三个探测目标（claude.ai 边缘诊断路径、www.anthropic.com、api.anthropic.com）；它们相互独立，单个探测失败只影响对应信号。claude.ai 主站受 CORP 限制，浏览器不直接探测。
 - 两个 IP 接口都失败时才会跳过 IP 信号；覆盖率下降，但风险分不会被抬高。

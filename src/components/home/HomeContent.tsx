@@ -2,6 +2,7 @@
 import { Detector } from "@/components/detector/Detector";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteFrame } from "@/components/layout/SiteFrame";
+import { networkLayerDefaultOn } from "@/detection/config";
 import { localeRoutes, messages, type LocaleCode } from "@/i18n/messages";
 import { siteUrl } from "@/site-config";
 
@@ -97,7 +98,7 @@ export function HomeContent({ locale = "zh" }: { locale?: LocaleCode }) {
             <p className="text-sm font-black uppercase tracking-[0.24em] text-[#d97757]">{copy.signals.eyebrow}</p>
             <h2 className="mt-3 text-3xl font-black leading-tight md:text-5xl">{copy.signals.title}</h2>
           </div>
-          <p className="text-base leading-8 text-stone-600 lg:max-w-3xl">{copy.signals.desc}</p>
+          <p className="text-base leading-8 text-stone-600 lg:max-w-3xl">{networkLayerDefaultOn ? copy.signals.descNetworkOn : copy.signals.desc}</p>
         </div>
         <div className="mt-10 overflow-hidden rounded-[2rem] border border-stone-200 bg-white/80 shadow-sm">
           <div className="grid divide-y divide-stone-200 md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-3">
