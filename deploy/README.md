@@ -137,7 +137,7 @@ CHECKCC_BIND=127.0.0.1 CHECKCC_PORT=18081 ./deploy/deploy.sh
 | `NEXT_PUBLIC_REPO_URL` | 本仓库 | 构建时 | 页头、页脚和源码入口使用的 GitHub 地址 |
 | `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | 构建时 | `false` 时彻底关闭网络层，界面不显示开关，也不发送 IP 查询、STUN、Anthropic 端点探测或 IPv6 查询 |
 | `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | 构建时 | 浏览器直连的主 CORS IP 查询接口，必须是 HTTPS |
-| `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://ipapi.co/json/` | 构建时 | 主接口失败、超时或被限流时自动尝试；设为空字符串可关闭回退。成功提示会显示实际使用的服务 |
+| `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://get.geojs.io/v1/ip/geo.json,https://ipapi.co/json/` | 构建时 | 主接口失败、超时或被限流时按顺序尝试，多个用英文逗号分隔；设为空字符串可关闭回退。成功提示会显示实际使用的服务 |
 | `NEXT_PUBLIC_WEBRTC_STUN_URL` | `stun:stun.cloudflare.com:3478` | 构建时 | 网络层开启时用于收集 WebRTC 出口候选的 STUN 地址；浏览器会直接连接它 |
 | `NEXT_PUBLIC_IPV6_ENDPOINT` | `https://api6.ipify.org?format=json` | 构建时 | IPv6 直连出口查询接口，返回 JSON 中的 `ip` 字段；必须是只解析 AAAA 记录的 HTTPS 地址 |
 | `CHECKCC_BIND` | `0.0.0.0` | 启动时 | 宿主机监听地址；按上面的拓扑选择 `127.0.0.1`、`0.0.0.0` 或指定网卡 IP |
@@ -150,6 +150,8 @@ CHECKCC_BIND=127.0.0.1 CHECKCC_PORT=18081 ./deploy/deploy.sh
 - `NEXT_PUBLIC_*` 会写入静态文件，改完后必须重新构建。
 - `NEXT_PUBLIC_SITE_URL` 末尾的 `/` 会被自动去掉；正式站点建议使用 `https://`。
 - `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT=` 留空表示只使用主接口。
+- `.env` 里没有这一行时使用默认的两个备用接口。如果你的 `.env` 是从旧版 `.env.example` 复制的，里面会写死 `https://ipapi.co/json/`，这样只有一个备用接口；删掉这一行或改成新的默认值，再重新构建。
+- 构建时生成的 CSP 会自动放行这里列出的所有接口，不需要手动修改 Nginx 配置。
 - 新的网络层子探测都受 `NEXT_PUBLIC_IP_INTEL_ENABLED=false` 统一关闭；没有单独开关。
 - 端点可达性探测使用 `no-cors` 请求，只能判断网络是否可达与耗时，无法读取响应内容，也不代表账号或地区可用。
 - IPv6 查询会访问第三方服务 `api6.ipify.org`；IPv6 出口与 HTTP 出口地址族不同属于正常双栈，不视为泄漏。
@@ -230,7 +232,7 @@ docker inspect -f '{{.State.Health.Status}}' checkcc
 浏览器验收时注意：
 
 - 网络层默认关闭；首次检测只使用浏览器信号，不发送 IP 查询。
-- 点击“开启网络层并重测”后，浏览器会先请求 `ipwho.is`；失败或被限流时自动回退到 `ipapi.co`，成功提示会显示实际使用的服务。
+- 点击“开启网络层并重测”后，浏览器会先请求 `ipwho.is`；失败或被限流时依次尝试 `get.geojs.io` 和 `ipapi.co`，成功提示会显示实际使用的服务。被限流的接口在本次浏览会话内会暂时跳过 1 小时。
 - 同一次网络层检测还会直连 STUN、IPv6 查询接口和 Anthropic 三个探测目标（claude.ai 边缘诊断路径、www.anthropic.com、api.anthropic.com）；它们相互独立，单个探测失败只影响对应信号。claude.ai 主站受 CORP 限制，浏览器不直接探测。
 - 两个 IP 接口都失败时才会跳过 IP 信号；覆盖率下降，但风险分不会被抬高。
 - 打开浏览器开发者工具的控制台，开启网络层检测后不应出现 `Content Security Policy` 报错；如果出现，通常是自定义了 `NEXT_PUBLIC_*` 端点但没有重新构建。
@@ -301,7 +303,7 @@ curl -v "http://127.0.0.1:${PORT}/healthz"
 | canonical、hreflang 或 sitemap 为空/仍是旧域名 | `NEXT_PUBLIC_SITE_URL` 为空，或修改后没有重新构建 | 填写正确的公网地址（建议 HTTPS），重新构建 |
 | 反向代理返回 502 | 代理目标端口不对、CheckCC 容器不健康，或代理在另一个容器里访问了错误的 `127.0.0.1` | `docker compose ps`、`docker compose logs`；直接 curl 宿主机端口；容器代理要用同一 Docker 网络的服务名 |
 | `/en` 或 `/hong-kong` 返回 404 | 访问地址缺少末尾 `/`，或静态托管没有启用目录重定向 | 用 `/en/`、`/hong-kong/` 访问；直接访问宿主机端口对比；静态托管需保留目录式路由 |
-| 网络层一直失败 | 第三方接口被浏览器网络、CORS 或限流拦截，不是服务器故障 | 看浏览器控制台；`ipwho.is` 失败会自动尝试 `ipapi.co`；两个都失败时页面会跳过 IP 信号，Nginx 日志不会有帮助 |
+| 网络层一直失败 | 第三方接口被浏览器网络、CORS 或限流拦截，不是服务器故障 | 看浏览器控制台；`ipwho.is` 失败会依次尝试 `get.geojs.io` 和 `ipapi.co`；全部失败时页面会跳过 IP 信号，Nginx 日志不会有帮助 |
 | 容器一直是 `unhealthy` | 容器启动失败、端口未监听或健康检查命令失败 | `docker compose logs --tail=100 checkcc`；`docker inspect checkcc`；确认容器内 8080 端口正常 |
 | SSH 隧道连接失败 | 本地端口被占用、服务器端口写错，或 SSH 会话已断开 | 换一个本地端口；确认 `CHECKCC_PORT`；保持 SSH 会话，必要时用 `-v` 查看原因 |
 | `./deploy/deploy.sh: Permission denied` | 文件没有执行权限（常见于下载 zip 后） | `chmod +x deploy/deploy.sh` 后重试 |

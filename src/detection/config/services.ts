@@ -2,9 +2,11 @@
 import type { DetectionServiceConfig } from "./types";
 
 const ipIntelEndpoint = process.env.NEXT_PUBLIC_IP_INTEL_ENDPOINT?.trim() || "https://ipwho.is/";
-// An explicitly empty value disables the fallback; an unset value uses the default.
+// Comma-separated, tried in order. An explicitly empty value disables fallbacks; an unset value uses the default.
+// ipapi.co comes last because its free tier is documented as not meant for production use.
+export const DEFAULT_IP_INTEL_FALLBACKS = "https://get.geojs.io/v1/ip/geo.json,https://ipapi.co/json/";
 const ipIntelFallbackEnv = process.env.NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT;
-const ipIntelFallbackEndpoint = ipIntelFallbackEnv === undefined ? "https://ipapi.co/json/" : ipIntelFallbackEnv.trim();
+const ipIntelFallbackEndpoint = ipIntelFallbackEnv === undefined ? DEFAULT_IP_INTEL_FALLBACKS : ipIntelFallbackEnv.trim();
 const ipIntelEnabled = process.env.NEXT_PUBLIC_IP_INTEL_ENABLED?.trim().toLowerCase() !== "false";
 
 export const serviceConfig: Record<string, DetectionServiceConfig> = {
