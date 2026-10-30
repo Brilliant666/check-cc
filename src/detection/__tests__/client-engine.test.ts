@@ -133,13 +133,32 @@ describe("isPublicIp", () => {
     ["8.8.8.8", true],
     ["1.1.1.1", true],
     ["10.0.0.1", false],
+    ["100.64.0.1", false],
+    ["100.127.255.255", false],
+    ["100.128.0.1", true],
     ["127.0.0.1", false],
     ["192.168.1.1", false],
     ["172.16.0.1", false],
     ["172.32.0.1", true],
     ["169.254.1.1", false],
+    ["192.0.2.1", false],
+    ["198.51.100.1", false],
+    ["203.0.113.1", false],
+    ["198.18.0.1", false],
+    ["224.0.0.1", false],
+    ["255.255.255.255", false],
+    ["256.1.1.1", false],
+    ["1.2.3", false],
     ["::1", false],
+    ["::", false],
     ["fc00::1", false],
+    ["fe80::1", false],
+    ["fe90::1", false],
+    ["fec0::1", false],
+    ["ff02::1", false],
+    ["2001:db8::1", false],
+    ["::ffff:192.168.1.1", false],
+    ["::ffff:8.8.8.8", true],
     ["2001:4860:4860::8888", true],
   ])("classifies %s as public=%s", (ip, expected) => {
     expect(isPublicIp(ip)).toBe(expected);
@@ -210,6 +229,21 @@ describe("locale content", () => {
     }
   });
 
+  it("ships reachability, IPv6 and IP-type copy for every locale", () => {
+    for (const text of Object.values(detectorLocaleText)) {
+      for (const key of ["intlFormat", "ipType", "ipv6Egress", "claudeAiReachability", "anthropicSiteReachability", "apiReachability", "anthropicEndpointSummary"]) {
+        expect(text.signalLabels[key]).toBeTruthy();
+      }
+      for (const key of ["latency_low", "latency_medium", "latency_high", "reachabilityTimeout", "reachabilityError", "reachabilityAll", "reachabilityPartial", "reachabilityNone", "ipType_datacenter", "ipType_residential", "ipType_carrier", "ipType_unknown", "ipv6EgressMatch", "ipv6EgressMismatch", "ipv6EgressDifferentFamily", "ipv6EgressTimeout", "ipv6EgressNetwork", "ipv6EgressInvalid"]) {
+        expect(text.signalValues[key]).toBeTruthy();
+      }
+      expect(text.signalValues.reachabilityFastest).toContain("{ms}");
+      expect(text.network.toggleHint).toMatch(/STUN/);
+      expect(text.network.toggleHint).toMatch(/api\.anthropic\.com/);
+      expect(text.network.toggleHint).toMatch(/IPv6/);
+    }
+  });
+
   it("links the post-check repair CTA to the documented third-party repository", () => {
     expect(cgClaudeRepoUrl).toBe("https://github.com/LcodeCoder/CG-Claude");
   });
@@ -219,8 +253,9 @@ describe("default signal configuration", () => {
   it("includes the WebRTC and egress signals behind the network layer", () => {
     const ids = defaultSignals.map((signal) => signal.id);
 
-    expect(ids).toEqual(expect.arrayContaining(["country", "webrtc", "exitConsistency", "ipv6Leak", "ipTimezone"]));
+    expect(ids).toEqual(expect.arrayContaining(["country", "webrtc", "exitConsistency", "ipv6Leak", "ipTimezone", "ipType", "ipv6Egress", "claudeAiReachability", "anthropicSiteReachability", "apiReachability", "anthropicEndpointSummary", "intlFormat"]));
     expect(ids.indexOf("webrtc")).toBeLessThan(ids.indexOf("ipAddress"));
+    expect(ids.indexOf("ipv6Egress")).toBeLessThan(ids.indexOf("browserIpLocation"));
   });
 
   it("weights the WebRTC egress and IP timezone signals", () => {
@@ -230,6 +265,14 @@ describe("default signal configuration", () => {
     expect(byId.exitConsistency).toMatchObject({ weight: 0, source: "network" });
     expect(byId.ipv6Leak).toMatchObject({ weight: 0, source: "network" });
     expect(byId.ipTimezone).toMatchObject({ weight: 4, source: "network" });
+    expect(byId.ipType).toMatchObject({ weight: 0, source: "network" });
+    expect(byId.ipv6Egress).toMatchObject({ weight: 0, source: "network" });
+    expect(byId.claudeAiReachability).toMatchObject({ weight: 0, source: "network" });
+    expect(byId.anthropicSiteReachability).toMatchObject({ weight: 0, source: "network" });
+    expect(byId.apiReachability).toMatchObject({ weight: 0, source: "network" });
+    expect(byId.anthropicEndpointSummary).toMatchObject({ weight: 0, source: "network" });
+    expect(byId.intlFormat).toMatchObject({ weight: 0, source: "browser" });
+    expect(defaultSignals.filter((signal) => signal.weight > 0)).toHaveLength(13);
   });
 });
 
@@ -406,5 +449,19 @@ describe("collectBrowserSignals", () => {
     expect(byId.timezone.contribution).toBe(16);
     expect(byId.language.contribution).toBe(20);
     expect(byId.locale.contribution).toBe(6);
+  });
+
+  it("collects date and number formatting as a context signal", () => {
+    stubCanvas();
+    const result = collectBrowserSignals(
+      "auto",
+      detectorLocaleText.en,
+      detectionConfig,
+      { languages: ["en-US"], timezone: "America/New_York", locale: "en-US", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36", platform: "Windows", brands: "Google Chrome" },
+    );
+    const intlFormat = result.signals.find((signal) => signal.id === "intlFormat");
+
+    expect(intlFormat).toMatchObject({ weight: 0, evaluated: true });
+    expect(intlFormat?.value).toContain("·");
   });
 });

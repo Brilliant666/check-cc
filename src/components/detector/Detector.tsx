@@ -17,6 +17,9 @@ import { detectionConfig } from "@/detection/config";
 import { lookupNetworkIntel, providerHost, type NetworkIntel } from "@/detection/ip-intel";
 import { buildJsonReport, buildTextReport, reportFilename } from "@/detection/report";
 import { analyzeWebRtc, compareTimezones, probeWebRtc, type WebRtcProbeResult } from "@/detection/webrtc";
+import { compareIpv6Egress, probeIpv6Egress, type Ipv6ProbeResult } from "@/detection/ipv6";
+import { classifyIpType } from "@/detection/ip-type";
+import { defaultReachabilityTargets, probeReachability, reachabilityLatencyLevel, summarizeReachability, type ReachabilityResult } from "@/detection/reachability";
 import { runDetection, type DetectionRunResult } from "@/detection/runner";
 import { countryRisk } from "@/detection/scoring";
 import { messages, type LocaleCode } from "@/i18n/messages";
@@ -79,6 +82,8 @@ export function Detector({ locale = "zh" }: Props) {
   const detectorText = detectorLocaleText[locale];
   const ipIntelConfig = detectionConfig.services.ipIntel;
   const webrtcConfig = detectionConfig.services.webrtc;
+  const ipv6Config = detectionConfig.services.ipv6;
+  const reachabilityConfig = detectionConfig.services.reachability;
   const ipIntelAvailable = Boolean(ipIntelConfig?.enabled);
   const networkProvider = ipIntelConfig ? providerHost(ipIntelConfig.endpoint) : "";
   const networkFallbackProvider = ipIntelConfig?.fallbackEndpoint ? providerHost(ipIntelConfig.fallbackEndpoint) : "";
@@ -87,6 +92,8 @@ export function Detector({ locale = "zh" }: Props) {
   const [browserResult, setBrowserResult] = useState<DetectionRunResult["browserResult"] | null>(null);
   const [networkIntel, setNetworkIntel] = useState<NetworkIntel | null>(null);
   const [webrtcProbe, setWebrtcProbe] = useState<WebRtcProbeResult | null>(null);
+  const [reachabilityProbe, setReachabilityProbe] = useState<ReachabilityResult[] | null>(null);
+  const [ipv6Probe, setIpv6Probe] = useState<Ipv6ProbeResult | null>(null);
   const [networkEnabled, setNetworkEnabled] = useState(false);
   const [networkUsed, setNetworkUsed] = useState(false);
   const [networkProviderLabel, setNetworkProviderLabel] = useState("");
@@ -128,6 +135,18 @@ export function Detector({ locale = "zh" }: Props) {
         if (networkIntel.asn) map.set("browserIpAsn", { id: "browserIpAsn", label: detectorText.signalLabels.browserIpAsn, value: networkIntel.asn, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
         const organization = networkIntel.org || networkIntel.isp;
         if (organization) map.set("browserIpOrg", { id: "browserIpOrg", label: detectorText.signalLabels.browserIpOrg, value: organization, score: 0, weight: 0, contribution: 0, source: "network", evaluated: true });
+
+        const ipType = classifyIpType({ asn: networkIntel.asn, org: networkIntel.org, isp: networkIntel.isp });
+        map.set("ipType", {
+          id: "ipType",
+          label: detectorText.signalLabels.ipType,
+          value: detectorText.signalValues[`ipType_${ipType}`],
+          score: 0,
+          weight: 0,
+          contribution: 0,
+          source: "network",
+          evaluated: ipType !== "unknown",
+        });
 
         const timezoneSignal = browserResult?.signals.find((item) => item.id === "timezone");
         const browserTimezone = timezoneSignal?.evaluated === false ? null : timezoneSignal?.value ?? null;
@@ -213,12 +232,68 @@ export function Detector({ locale = "zh" }: Props) {
           });
         }
       }
+
+      if (ipv6Config?.enabled && ipv6Probe) {
+        let ipv6Value = detectorText.signalValues.ipv6EgressInvalid;
+        let ipv6Evaluated = false;
+        if (ipv6Probe.status === "ok") {
+          const comparison = compareIpv6Egress(ipv6Probe.ip, networkIntel?.ip ?? null);
+          if (comparison === "match") ipv6Value = `${ipv6Probe.ip} · ${detectorText.signalValues.ipv6EgressMatch}`;
+          else if (comparison === "mismatch") ipv6Value = `${ipv6Probe.ip} · ${detectorText.signalValues.ipv6EgressMismatch}`;
+          else if (comparison === "different_family") ipv6Value = `${ipv6Probe.ip} · ${detectorText.signalValues.ipv6EgressDifferentFamily}`;
+          else ipv6Value = ipv6Probe.ip;
+          ipv6Evaluated = true;
+        } else if (ipv6Probe.reason === "timeout") ipv6Value = detectorText.signalValues.ipv6EgressTimeout;
+        else if (ipv6Probe.reason === "network") ipv6Value = detectorText.signalValues.ipv6EgressNetwork;
+        map.set("ipv6Egress", {
+          id: "ipv6Egress",
+          label: detectorText.signalLabels.ipv6Egress,
+          value: ipv6Value,
+          score: 0,
+          weight: 0,
+          contribution: 0,
+          source: "network",
+          evaluated: ipv6Evaluated,
+        });
+      }
+
+      if (reachabilityConfig?.enabled && reachabilityProbe) {
+        for (const result of reachabilityProbe) {
+          const level = reachabilityLatencyLevel(result.latencyMs);
+          const latency = level ? ` · ${detectorText.signalValues[`latency_${level}`]}` : "";
+          const value = result.status === "reachable" ? `${result.latencyMs} ms${latency}` : result.status === "timeout" ? detectorText.signalValues.reachabilityTimeout : detectorText.signalValues.reachabilityError;
+          map.set(result.signalId, {
+            id: result.signalId,
+            label: detectorText.signalLabels[result.signalId] ?? result.host,
+            value,
+            score: 0,
+            weight: 0,
+            contribution: 0,
+            source: "network",
+            evaluated: result.status === "reachable",
+          });
+        }
+        const summary = summarizeReachability(reachabilityProbe);
+        const fastest = summary.fastestMs === null ? "" : ` · ${detectorText.signalValues.reachabilityFastest.replace("{ms}", String(summary.fastestMs))}`;
+        const statusText = summary.status === "all" ? detectorText.signalValues.reachabilityAll : summary.status === "partial" ? detectorText.signalValues.reachabilityPartial : detectorText.signalValues.reachabilityNone;
+        map.set("anthropicEndpointSummary", {
+          id: "anthropicEndpointSummary",
+          label: detectorText.signalLabels.anthropicEndpointSummary,
+          value: `${summary.reachableCount}/${summary.total} · ${statusText}${fastest}`,
+          score: 0,
+          weight: 0,
+          contribution: 0,
+          source: "network",
+          evaluated: summary.status === "all",
+        });
+      }
     }
 
+    const independentNetworkIds = new Set(["ipv6Egress", "claudeAiReachability", "anthropicSiteReachability", "apiReachability", "anthropicEndpointSummary"]);
     const visibleDefaults = defaultSignals.filter((item) => {
       if (item.source !== "server" && item.source !== "network") return true;
       if (!networkUsed) return false;
-      return networkState !== "failed" || item.weight > 0;
+      return networkState !== "failed" || item.weight > 0 || independentNetworkIds.has(item.id);
     });
 
     const merged = visibleDefaults.map((item, index) => {
@@ -235,7 +310,7 @@ export function Detector({ locale = "zh" }: Props) {
       if (!visibleDefaults.some((item) => item.id === signal.id)) merged.push({ ...signal, state: signal.evaluated === false ? "unknown" : progress === 100 ? "done" : "running" });
     }
     return merged;
-  }, [browserResult, networkIntel, webrtcProbe, webrtcConfig, networkUsed, networkState, region, activeSignal, progress, detectorText, locale]);
+  }, [browserResult, networkIntel, webrtcProbe, reachabilityProbe, ipv6Probe, webrtcConfig, ipv6Config, reachabilityConfig, networkUsed, networkState, region, activeSignal, progress, detectorText, locale]);
 
   const scoreSummary = useMemo(() => summarizeSignals(signals), [signals]);
   const rawScore = scoreSummary.score;
@@ -329,6 +404,8 @@ export function Detector({ locale = "zh" }: Props) {
     setBrowserResult(null);
     setNetworkIntel(null);
     setWebrtcProbe(null);
+    setReachabilityProbe(null);
+    setIpv6Probe(null);
     setNetworkProviderLabel("");
     setProgress(0);
     setActiveSignal(0);
@@ -358,13 +435,24 @@ export function Detector({ locale = "zh" }: Props) {
           const probeTask = webrtcConfig?.enabled
             ? probeWebRtc({ stunUrl: webrtcConfig.endpoint, timeoutMs: webrtcConfig.timeoutMs })
             : Promise.resolve(null);
-          const [lookup, probe] = await Promise.all([
+          const ipv6Task = ipv6Config?.enabled ? probeIpv6Egress({ endpoint: ipv6Config.endpoint, timeoutMs: ipv6Config.timeoutMs }) : Promise.resolve(null);
+          const reachabilityTask = reachabilityConfig?.enabled
+            ? probeReachability({
+                targets: defaultReachabilityTargets.map((target) => (target.signalId === "claudeAiReachability" ? { ...target, url: reachabilityConfig.endpoint } : target)),
+                timeoutMs: reachabilityConfig.timeoutMs,
+              })
+            : Promise.resolve(null);
+          const [lookup, probe, ipv6, reachability] = await Promise.all([
             lookupNetworkIntel({ endpoint: ipIntelConfig.endpoint, fallbackEndpoint: ipIntelConfig.fallbackEndpoint, timeoutMs: ipIntelConfig.timeoutMs }),
             probeTask,
+            ipv6Task,
+            reachabilityTask,
             progressAnimation,
           ]);
           if (runTokenRef.current !== token) return;
           setWebrtcProbe(probe);
+          setIpv6Probe(ipv6);
+          setReachabilityProbe(reachability);
           if (lookup.status === "ok") {
             setNetworkIntel(lookup.intel);
             setNetworkProviderLabel(lookup.provider);
@@ -396,7 +484,7 @@ export function Detector({ locale = "zh" }: Props) {
         window.dispatchEvent(new CustomEvent("checkcc-running", { detail: false }));
       }
     }
-  }, [region, networkEnabled, ipIntelAvailable, ipIntelConfig, webrtcConfig, detectorText]);
+  }, [region, networkEnabled, ipIntelAvailable, ipIntelConfig, webrtcConfig, ipv6Config, reachabilityConfig, detectorText]);
 
   const enableNetworkAndRerun = () => {
     if (runningRef.current || !ipIntelAvailable) return;
@@ -410,6 +498,8 @@ export function Detector({ locale = "zh" }: Props) {
     setBrowserResult(null);
     setNetworkIntel(null);
     setWebrtcProbe(null);
+    setReachabilityProbe(null);
+    setIpv6Probe(null);
     setNetworkProviderLabel("");
     setNetworkState("idle");
     setNetworkUsed(networkEnabled && ipIntelAvailable);

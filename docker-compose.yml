@@ -10,6 +10,7 @@ services:
         NEXT_PUBLIC_IP_INTEL_ENDPOINT: ${NEXT_PUBLIC_IP_INTEL_ENDPOINT:-https://ipwho.is/}
         NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT: ${NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT-https://ipapi.co/json/}
         NEXT_PUBLIC_WEBRTC_STUN_URL: ${NEXT_PUBLIC_WEBRTC_STUN_URL:-stun:stun.cloudflare.com:3478}
+        NEXT_PUBLIC_IPV6_ENDPOINT: ${NEXT_PUBLIC_IPV6_ENDPOINT:-https://api6.ipify.org?format=json}
     image: checkcc:local
     container_name: checkcc
     restart: unless-stopped

@@ -146,6 +146,18 @@ function detectDeviceName(ua: string, platform: string | undefined, text: Detect
   return os;
 }
 
+function detectIntlFormat() {
+  try {
+    const sample = new Date(Date.UTC(2026, 9, 30, 13, 45));
+    const date = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "UTC" }).format(sample);
+    const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(sample);
+    const number = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(1234.5);
+    return `${date} · ${time} · ${number}`;
+  } catch {
+    return null;
+  }
+}
+
 export function collectBrowserEnvironment(text: DetectorLocaleText): BrowserEnvironmentSnapshot {
   const nav = navigator as Navigator & { userAgentData?: { platform?: string; brands?: Array<{ brand: string; version: string }>; mobile?: boolean } };
   return {
@@ -199,18 +211,51 @@ export function collectBrowserSignals(region: RegionCode, text: DetectorLocaleTe
     makeSignal("device", label.device, detectDeviceName(ua, platform, text), 0, false, text, config),
     makeSignal("os", label.os, detectOS(ua, platform, text), 0, false, text, config),
     makeSignalScore("locale", label.locale, locale, 6, localeScore, text, config),
+    makeSignal("intlFormat", label.intlFormat, detectIntlFormat(), 0, false, text, config),
     makeSignalScore("timezoneOffset", label.timezoneOffset, `UTC${offset >= 0 ? "+" : ""}${offset}`, 4, timezoneOffsetScore, text, config),
     makeSignalScore("emojiStyle", label.emojiStyle, emojiStyle, 4, emojiScore, text, config),
   ].filter((signal) => getSignalConfig(signal.id, config)?.enabled !== false);
   return { ...access, signals };
 }
 
-export function isPublicIp(ip: string) {
-  if (ip.includes(":")) return !/^(::1|fc|fd|fe80:)/i.test(ip);
-  const parts = ip.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) return false;
-  const [a, b] = parts;
-  return !(a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || a === 0);
+function isPublicIpv4(ip: string) {
+  const parts = ip.split(".");
+  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part))) return false;
+  const octets = parts.map(Number);
+  if (octets.some((part) => part > 255)) return false;
+  const [a, b, c] = octets;
+  if (a === 0 || a === 10 || a === 127) return false;
+  if (a === 100 && b >= 64 && b <= 127) return false;
+  if (a === 169 && b === 254) return false;
+  if (a === 172 && b >= 16 && b <= 31) return false;
+  if (a === 192 && b === 168) return false;
+  if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+  if (a === 198 && (b === 18 || b === 19)) return false;
+  if (a === 198 && b === 51 && c === 100) return false;
+  if (a === 203 && b === 0 && c === 113) return false;
+  return a < 224;
+}
+
+function isPublicIpv6(value: string) {
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(value);
+  if (mapped) return isPublicIpv4(mapped[1]);
+  if (value === "::" || value === "::1") return false;
+  if (!/^[0-9a-f:]+$/.test(value) || (value.match(/::/g) ?? []).length > 1) return false;
+  if (value.startsWith(":") && !value.startsWith("::")) return false;
+  if (value.endsWith(":") && !value.endsWith("::")) return false;
+  const groups = value.split(":").filter(Boolean);
+  if (value.includes("::") ? groups.length > 7 : groups.length !== 8) return false;
+  if (groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return false;
+  const first = Number.parseInt(groups[0], 16);
+  if (first >= 0xfc00) return false;
+  if (first === 0x2001 && Number.parseInt(groups[1] ?? "0", 16) === 0x0db8) return false;
+  return first >= 0x2000 && first <= 0x3fff;
+}
+
+export function isPublicIp(ip: string): boolean {
+  const value = ip.trim().toLowerCase().replace(/^\[|\]$/g, "").replace(/%.*$/, "");
+  if (!value) return false;
+  return value.includes(":") ? isPublicIpv6(value) : isPublicIpv4(value);
 }
 
 export type SignalScoreSummary = {

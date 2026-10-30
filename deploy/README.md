@@ -135,10 +135,11 @@ CHECKCC_BIND=127.0.0.1 CHECKCC_PORT=18081 ./deploy/deploy.sh
 | --- | --- | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | 空 | 构建时 | 站点对外地址，例如 `https://check.example.com`。设置后才生成 canonical、hreflang、OG URL 和 sitemap；为空时这些字段不输出 |
 | `NEXT_PUBLIC_REPO_URL` | 本仓库 | 构建时 | 页头、页脚和源码入口使用的 GitHub 地址 |
-| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | 构建时 | `false` 时彻底关闭网络层，界面不显示开关，也不发送 IP 查询或 STUN 请求 |
+| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | 构建时 | `false` 时彻底关闭网络层，界面不显示开关，也不发送 IP 查询、STUN、Anthropic 端点探测或 IPv6 查询 |
 | `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | 构建时 | 浏览器直连的主 CORS IP 查询接口，必须是 HTTPS |
 | `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://ipapi.co/json/` | 构建时 | 主接口失败、超时或被限流时自动尝试；设为空字符串可关闭回退。成功提示会显示实际使用的服务 |
 | `NEXT_PUBLIC_WEBRTC_STUN_URL` | `stun:stun.cloudflare.com:3478` | 构建时 | 网络层开启时用于收集 WebRTC 出口候选的 STUN 地址；浏览器会直接连接它 |
+| `NEXT_PUBLIC_IPV6_ENDPOINT` | `https://api6.ipify.org?format=json` | 构建时 | IPv6 直连出口查询接口，返回 JSON 中的 `ip` 字段；必须是只解析 AAAA 记录的 HTTPS 地址 |
 | `CHECKCC_BIND` | `0.0.0.0` | 启动时 | 宿主机监听地址；按上面的拓扑选择 `127.0.0.1`、`0.0.0.0` 或指定网卡 IP |
 | `CHECKCC_PORT` | `8080` | 启动时 | 宿主机端口；可以改成任意空闲端口，容器内部始终监听 80 |
 
@@ -149,6 +150,9 @@ CHECKCC_BIND=127.0.0.1 CHECKCC_PORT=18081 ./deploy/deploy.sh
 - `NEXT_PUBLIC_*` 会写入静态文件，改完后必须重新构建。
 - `NEXT_PUBLIC_SITE_URL` 末尾的 `/` 会被自动去掉；正式站点建议使用 `https://`。
 - `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT=` 留空表示只使用主接口。
+- 新的网络层子探测都受 `NEXT_PUBLIC_IP_INTEL_ENABLED=false` 统一关闭；没有单独开关。
+- 端点可达性探测使用 `no-cors` 请求，只能判断网络是否可达与耗时，无法读取响应内容，也不代表账号或地区可用。
+- IPv6 查询会访问第三方服务 `api6.ipify.org`；IPv6 出口与 HTTP 出口地址族不同属于正常双栈，不视为泄漏。
 
 ## 5. 反向代理、HTTPS 和防火墙
 
@@ -223,8 +227,9 @@ docker inspect -f '{{.State.Health.Status}}' checkcc
 
 - 网络层默认关闭；首次检测只使用浏览器信号，不发送 IP 查询。
 - 点击“开启网络层并重测”后，浏览器会先请求 `ipwho.is`；失败或被限流时自动回退到 `ipapi.co`，成功提示会显示实际使用的服务。
-- 两个接口都失败时才会跳过 IP 信号；覆盖率下降，但风险分不会被抬高。
-- IP 查询由访客浏览器直接发起，Nginx 访问日志里看不到第三方 IP 查询请求，这是正常的。
+- 同一次网络层检测还会直连 STUN、IPv6 查询接口和 Anthropic 三个探测目标（claude.ai 边缘诊断路径、www.anthropic.com、api.anthropic.com）；它们相互独立，单个探测失败只影响对应信号。claude.ai 主站受 CORP 限制，浏览器不直接探测。
+- 两个 IP 接口都失败时才会跳过 IP 信号；覆盖率下降，但风险分不会被抬高。
+- IP 查询、STUN、IPv6 查询和端点探测都由访客浏览器直接发起，Nginx 访问日志里看不到这些第三方请求，这是正常的。
 
 ## 7. 更新、回滚和清理
 

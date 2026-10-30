@@ -25,7 +25,7 @@ class FakePeer {
   async setLocalDescription() {
     queueMicrotask(() => {
       this.onicecandidate?.({ candidate: { candidate: "candidate:1 1 udp 2122260223 192.168.1.10 5000 typ host generation 0" } });
-      this.onicecandidate?.({ candidate: { candidate: "candidate:2 1 udp 1686052607 203.0.113.9 5001 typ srflx raddr 192.168.1.10 rport 5000 generation 0" } });
+      this.onicecandidate?.({ candidate: { candidate: "candidate:2 1 udp 1686052607 8.8.8.8 5001 typ srflx raddr 192.168.1.10 rport 5000 generation 0" } });
       this.onicecandidate?.({ candidate: null });
       this.iceGatheringState = "complete";
       this.onicegatheringstatechange?.();
@@ -152,7 +152,7 @@ describe("probeWebRtc", () => {
     const result = await probeWebRtc({ timeoutMs: 500 });
 
     expect(result.status).toBe("ok");
-    expect(result.publicAddresses).toEqual(["203.0.113.9"]);
+    expect(result.publicAddresses).toEqual(["8.8.8.8"]);
     expect(result.privateAddresses).toEqual(["192.168.1.10"]);
     expect(result.candidates).toHaveLength(2);
     expect(FakePeer.instances[0].config).toEqual({ iceServers: [{ urls: "stun:stun.cloudflare.com:3478" }] });

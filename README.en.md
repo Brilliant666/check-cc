@@ -24,7 +24,7 @@
 
 **CheckCC** is a browser-side Claude environment checker. It looks for obvious conflicts between system timezone, browser language, Intl locale, fonts, device traits, and network egress. It does not log in to Claude, read your account, cookies, or chats, and it does not upload results to a server.
 
-This repository is a community fork of [yacuo/check-cc](https://github.com/yacuo/check-cc), maintained by [Brilliant666](https://github.com/Brilliant666). This fork prioritizes trustworthy reporting: unevaluated signals are no longer scored as zero risk, the report shows evaluable coverage, the network layer is off by default and opt-in, Hong Kong environments use a separate profile instead of mainland China, and the opt-in network layer can also compare WebRTC egress and the IP timezone.
+This repository is a community fork of [yacuo/check-cc](https://github.com/yacuo/check-cc), maintained by [Brilliant666](https://github.com/Brilliant666). This fork prioritizes trustworthy reporting: unevaluated signals are no longer scored as zero risk, the report shows evaluable coverage, the network layer is off by default and opt-in, Hong Kong environments use a separate profile instead of mainland China, and the opt-in network layer can also compare WebRTC egress, dual-stack IPv6 egress, Claude endpoint reachability, and the IP timezone. All new direct probes are context only and never change the weighted score.
 
 > Results are heuristic risk hints, not an official Claude or Anthropic judgment. They cannot prove that an account is safe or will be restricted.
 
@@ -34,6 +34,9 @@ This repository is a community fork of [yacuo/check-cc](https://github.com/yacuo
 - 🇭🇰 **Mainland China / Hong Kong / Russia / Iran profiles**: auto detection matches them separately. Traditional Chinese, a Hong Kong timezone, and a `zh-HK` locale map to Hong Kong instead of mainland China.
 - 🌐 **Optional network layer**: off by default. After a browser-only result, choose "Turn on network and recheck" to query a third-party IP geolocation service directly from the browser.
 - 🧭 **WebRTC egress check**: with the network layer on, ICE candidates are gathered through STUN and compared with the HTTP exit; public IPv6 candidates and IP-vs-system timezone mismatches are reported separately. Probe failures only reduce coverage and never raise or lower the risk score.
+- 🛰️ **Claude endpoint reachability**: with the network layer on, the browser connects directly to claude.ai's Cloudflare edge diagnostic path, `www.anthropic.com`, and `api.anthropic.com`, recording only whether the request completes and how long it takes, then highlighting the fastest result. The `no-cors` probe does not read response content. The claude.ai app is protected by a cross-origin (CORP) policy and cannot be probed directly, so edge reachability does not prove sign-in or subscription availability.
+- 🧩 **Dual-stack egress and egress type**: an IPv6-only lookup reads the direct IPv6 exit and compares it with the HTTP exit in the same address family; ASN and network organization names suggest residential, carrier, datacenter, or unknown. Both are zero-weight context.
+- 🧾 **Localization format context**: reads the browser's actual date, time, and number formats as regional-profile context without affecting the score.
 - 📊 **Coverage and not-evaluated states**: only signals with actual values are scored; missing signals neither raise nor lower the score, and coverage is shown separately.
 - 🧾 **Report export**: copy a text report or download JSON with score, coverage, raw values, weights, contributions, recommendations, and limitations.
 - 🌏 **Four UI languages**: Simplified Chinese, Traditional Chinese, Russian, and English, each with its own URL and `html lang`.
@@ -61,7 +64,7 @@ The result lists matched signals, weight contributions, the risk score, and cove
 
 ![CheckCC result with network layer](./docs/images/readme/detection-network-en.png)
 
-After "Turn on network and recheck", the browser queries `ipwho.is` directly for your public IP. If the primary endpoint fails or is rate-limited, it automatically falls back to `ipapi.co`, and the notice shows which service was actually used. The browser also gathers WebRTC egress candidates through STUN and cross-checks them against the HTTP exit and IP timezone. Weighted signals can reach `13/13`, and the result adds IP country, WebRTC egress, egress consistency, IPv6 egress, IP vs. system timezone, IP address, location, ASN, and network organization. When WebRTC is unsupported, STUN is blocked, or no comparable candidate exists, those signals are marked "not evaluated" and coverage drops.
+After "Turn on network and recheck", the browser queries `ipwho.is` directly for your public IP. If the primary endpoint fails or is rate-limited, it automatically falls back to `ipapi.co`, and the notice shows which service was actually used. The same run gathers WebRTC egress candidates through STUN, queries the direct IPv6 exit, and probes the three Anthropic endpoints, then cross-checks them against the HTTP exit and IP timezone. Weighted signals still top out at `13/13`; the signal panel shows at most 29 rows (14 browser + 15 network), of which only IP country, WebRTC egress, and IP timezone are weighted. When WebRTC is unsupported, STUN is blocked, or no comparable candidate exists, those signals are marked "not evaluated" and coverage drops; endpoint or IPv6 failures only affect their own zero-weight signals.
 
 ### 🇭🇰 Hong Kong profile
 
@@ -86,7 +89,7 @@ Target selection, the network toggle, and the privacy note expand inline instead
 1. **Collect browser environment**: read `navigator.languages`, `Intl.DateTimeFormat().resolvedOptions()`, timezone offset, User-Agent, UA-CH brands, and Canvas font probes.
 2. **Match regional profiles**: score overlap against each profile using language, timezone, Intl locale, browser, and device traits, then select the best match.
 3. **Score weighted signals**: only weighted signals with actual values participate; missing or failed signals are marked "not evaluated".
-4. **Optional network layer**: when enabled, the browser queries a third-party IP geolocation service directly for IP country, ASN, organization, and location, and gathers WebRTC candidates through STUN to compare HTTP / WebRTC egress and the IP timezone.
+4. **Optional network layer**: when enabled, the browser queries a third-party IP geolocation service directly for IP country, ASN, organization, and location, gathers WebRTC candidates through STUN, reads the direct IPv6 exit from an IPv6-only lookup, and probes Anthropic endpoints directly for reachability and latency, then compares HTTP / WebRTC / IPv6 egress and the IP timezone.
 5. **Generate recommendations and reports**: build next-step advice from the score, coverage, and limitations, then copy text or download JSON.
 
 ### Weighted signals
@@ -107,7 +110,7 @@ Target selection, the network toggle, and the privacy note expand inline instead
 | Emoji rendering style | 4 | Apple / Android / Windows emoji style |
 | IP vs. system timezone | 4 | Optional network signal; scores when the IP timezone and browser timezone have different UTC offsets. IANA aliases with the same offset count as consistent |
 
-Browser/app environment, device/system clues, and operating system are three browser context signals. IP address, IP location, ASN, network organization, egress consistency, and IPv6 egress are six network context signals. None of these nine rows affect the score.
+Browser/app environment, device/system clues, operating system, and date/number format are four browser context signals. IP address, IP location, ASN, network organization, egress consistency, WebRTC IPv6 egress, egress type, direct IPv6 egress, three endpoint probes (claude.ai edge / site / API), and the endpoint summary are twelve network context signals. None of these sixteen rows affect the score.
 
 ### Scoring
 
@@ -115,7 +118,9 @@ Browser/app environment, device/system clues, and operating system are three bro
 - Coverage is shown separately. `100% (10/10)` means all ten weighted browser signals were evaluated; with the network layer on it can reach `13/13` (10 browser signals + IP country + WebRTC egress + IP timezone).
 - When every network endpoint fails, the country signal is shown as "lookup failed / not evaluated". Coverage drops, but the missing 20-point weight is not scaled up into risk.
 - When the WebRTC probe fails, is unsupported, or yields no same-family candidate, the WebRTC signal is marked "not evaluated"; a failed probe never adds risk by itself.
-- IPv6 egress and egress consistency are zero-weight context signals so they do not double-count the 18-point WebRTC signal.
+- IPv6 egress, egress consistency, egress type, and endpoint reachability are zero-weight context so they do not double-count the 18-point WebRTC signal; they explain egress relationships, network location, and endpoint connectivity.
+- A different address family between the IPv6 exit and the HTTP exit (for example HTTP over IPv4 with a working direct IPv6 exit) is normal dual-stack behavior, not a leak; only same-family addresses that differ are marked as mismatched.
+- Endpoint probes only confirm whether a network request completes and how long it takes. In `no-cors` mode they do not read the response or judge account or region availability.
 - The country signal scores only when the IP country matches the target profile. With "Auto detect", an IP in mainland China, Hong Kong, Russia, or Iran scores.
 - Auto detection matches mainland China, Hong Kong, Russia, and Iran separately; Traditional Chinese, a Hong Kong timezone, and a `zh-HK` locale map to Hong Kong.
 - Manual targets are mainland China and Russia; Hong Kong and Iran are identified by auto detection.
@@ -130,7 +135,7 @@ After a check, copy a text report or download JSON. Reports include:
 - Risk-based next-step recommendations
 - The limitation note for the current run
 
-With the network layer on, reports also contain the detected IP, country, ASN, network organization, WebRTC egress candidates, egress consistency, and the IP timezone comparison. Reports are generated locally in the browser; remember that they may contain your public IP before sharing.
+With the network layer on, reports also contain the detected IP, country, ASN, network organization, egress type, WebRTC egress candidates, egress consistency, direct IPv6 comparison, Claude endpoint latencies, and the IP timezone comparison. Reports are generated locally in the browser; remember that they may contain your public IP before sharing.
 
 ### Capability boundaries
 
@@ -141,7 +146,10 @@ With the network layer on, reports also contain the detected IP, country, ASN, n
 | 3 optional weighted network signals (IP country / WebRTC egress / IP vs. system timezone, not requested by default) | Implemented |
 | WebRTC candidate vs. HTTP exit comparison | Implemented (browser-to-STUN) |
 | IP / ASN / organization / location display | Implemented (browser-to-provider) |
-| 3 browser context signals + 6 network context signals (not scored) | Implemented |
+| Claude endpoint reachability and fastest latency (zero weight) | Implemented (claude.ai edge path + site + API via `no-cors`, no response read; the app page is CORP-protected and not probed) |
+| Direct IPv6 egress and same-family comparison (zero weight) | Implemented (browser-to-IPv6 lookup) |
+| Egress type heuristic (zero weight) | Implemented (ASN / organization name) |
+| 4 browser context + 12 network context signals (not scored) | Implemented |
 | Mainland China, Hong Kong, Russia, and Iran region profiles | Implemented |
 | Network-layer toggle and privacy disclosure | Implemented (off by default, opt-in) |
 | Coverage and "not evaluated" states | Implemented |
@@ -150,6 +158,7 @@ With the network layer on, reports also contain the detected IP, country, ASN, n
 | Chinese, Traditional Chinese, Russian, English | Implemented |
 | Static export and self-hosting | Implemented |
 | VPN / proxy detection | Not fully implemented (HTTP and WebRTC egress are compared to flag obvious mismatches) |
+| DNS leak / TLS fingerprint / request-header checks | Not implemented (requires a backend or local probe; a static site cannot do this) |
 | Account, cookie, or chat access | Not implemented |
 | Desktop one-click repair | Handled by the third-party CG-Claude client; this site only explains and links out, and never downloads or runs it |
 
@@ -158,8 +167,9 @@ With the network layer on, reports also contain the detected IP, country, ASN, n
 ![CheckCC privacy note](./docs/images/readme/privacy-en.png)
 
 - Checking does not require a Claude login and does not read your account, password, cookies, or chat content.
-- The network layer is off by default; a default check uses browser signals only and sends no IP lookup or STUN request to a third party.
-- When on, your browser sends an HTTPS request directly to the configured third-party IP geolocation service (`ipwho.is` by default, with an automatic fallback to `ipapi.co`) and gathers WebRTC candidates through the default `stun.cloudflare.com:3478`. These services will see your public IP. Requests do not pass through this site's server, and this site does not receive, forward, or store the result. The success notice shows which service was actually used.
+- The network layer is off by default; a default check uses browser signals only and sends no IP lookup, STUN, IPv6 lookup, or Anthropic endpoint request to a third party.
+- When on, your browser sends an HTTPS request directly to the configured third-party IP geolocation service (`ipwho.is` by default, with an automatic fallback to `ipapi.co`), gathers WebRTC candidates through the default `stun.cloudflare.com:3478`, queries an IPv6-only lookup (`api6.ipify.org` by default) for the direct IPv6 exit, and contacts claude.ai's edge diagnostic path, `www.anthropic.com`, and `api.anthropic.com` directly. The claude.ai app returns a CORP header that blocks cross-origin browser probes, so the app page itself is not requested. These services will see your public IP. Requests do not pass through this site's server, and this site does not receive, forward, or store the result. The success notice shows which IP lookup service was actually used.
+- Endpoint probes use `no-cors` and `cache: "no-store"`, send no cookies or referring page, and do not read response content; they only indicate whether the browser network can complete the request, not whether an account or region is available.
 - The WebRTC probe only gathers egress candidates and compares them with the HTTP exit. It does not start a media call or read device names or LAN hostnames; mDNS candidates returned by the browser are not scored.
 - The request uses `credentials: "omit"` and `no-referrer`, so no cookies or referring page are sent.
 - Results are not uploaded automatically; reports are generated locally in the browser.
@@ -196,6 +206,9 @@ review-check-cc/
 │  │  ├─ client-engine.ts         # Browser sampling and signal scoring
 │  │  ├─ scoring.ts               # Regional profile matching
 │  │  ├─ ip-intel.ts              # Optional network lookup and parsing
+│  │  ├─ reachability.ts          # Claude endpoint reachability and latency probe
+│  │  ├─ ipv6.ts                  # Direct IPv6 egress lookup and same-family comparison
+│  │  ├─ ip-type.ts               # ASN / organization egress-type heuristic
 │  │  ├─ webrtc.ts                # WebRTC egress probe and exit/timezone comparison
 │  │  ├─ report.ts                # Text / JSON reports
 │  │  ├─ config/                  # Signal weights, services, steps
@@ -295,10 +308,11 @@ The network layer reads these environment variables at build time; rebuild after
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | Set to `false` to remove the network layer entirely: no toggle, no IP lookup. `true` only makes the opt-in available; the first check still sends no IP request by default. |
+| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | Set to `false` to remove the network layer entirely: no toggle, no IP lookup, STUN, IPv6 lookup, or endpoint probe. `true` only makes the opt-in available; the first check still sends no IP request by default. |
 | `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | Primary endpoint. Must be an HTTPS, CORS-enabled endpoint that the browser can call directly. |
 | `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://ipapi.co/json/` | Tried automatically when the primary endpoint fails, times out, or is rate-limited. Set it to an empty string to disable the fallback. The success notice shows which service was used. |
 | `NEXT_PUBLIC_WEBRTC_STUN_URL` | `stun:stun.cloudflare.com:3478` | STUN server used when the network layer is on; the browser connects to it directly. Rebuild after changing it. |
+| `NEXT_PUBLIC_IPV6_ENDPOINT` | `https://api6.ipify.org?format=json` | IPv6-only HTTPS endpoint returning an `ip` field in JSON; it should resolve only AAAA records. |
 
 The endpoint may return the native ipwho.is shape or the flat shape used by ipapi.co and many self-hosted endpoints:
 
@@ -319,21 +333,21 @@ The endpoint may return the native ipwho.is shape or the flat shape used by ipap
 }
 ```
 
-Each IP endpoint times out after 3500 ms, and WebRTC candidate gathering times out after 2500 ms (see `src/detection/config/services.ts`). On a timeout, CORS failure, malformed response, or private/reserved address, the lookup tries the fallback endpoint; only when every endpoint fails are IP signals skipped with a failure notice. Failures are not treated as zero risk and do not inflate the score. A STUN timeout or unsupported WebRTC only marks the WebRTC-related signals "not evaluated".
+Each IP endpoint times out after 3500 ms, WebRTC candidate gathering after 2500 ms, the IPv6 lookup after 3000 ms, and endpoint probes after 3500 ms (see `src/detection/config/services.ts`). On a timeout, CORS failure, malformed response, or private/reserved address, the lookup tries the fallback endpoint; only when every endpoint fails are IP signals skipped with a failure notice. Failures are not treated as zero risk and do not inflate the score. A STUN timeout or unsupported WebRTC only marks the WebRTC-related signals "not evaluated"; IPv6 or endpoint failures only affect their own zero-weight context rows.
 
 ## 🧪 Development and checks
 
 ```bash
 pnpm lint        # ESLint
 pnpm typecheck   # TypeScript
-pnpm test        # Vitest, 87 tests
+pnpm test        # Vitest, 128 tests
 pnpm check       # lint + typecheck + test
 pnpm build       # Static export
 ```
 
 GitHub Actions runs lint, type checking, unit tests, and a static build on push and pull requests.
 
-Tests cover score non-inflation under partial coverage, unknown signals, zero-weight signals, IP classification, IP lookup parsing/timeouts/failures, ICE candidate parsing, WebRTC vs. HTTP egress comparison, IPv6 candidates, timezone-offset comparison, country-profile matching, Hong Kong vs. mainland attribution, report export, and locale copy completeness.
+Tests cover score non-inflation under partial coverage, unknown signals, zero-weight signals, IP classification, IP lookup parsing/timeouts/failures, ICE candidate parsing, WebRTC vs. HTTP egress comparison, IPv6 candidates, timezone-offset comparison, country-profile matching, Hong Kong vs. mainland attribution, endpoint reachability timeouts and summaries, direct IPv6 egress parsing and same-family comparison, egress-type heuristics, date/number format context, report export, and locale copy completeness.
 
 ## 🗺️ Routes
 
@@ -350,7 +364,7 @@ Tests cover score non-inflation under partial coverage, unknown signals, zero-we
 
 ### 1. Why does the first check not query my IP?
 
-That is expected. The network layer is off by default, so the first check uses browser signals only and usually shows `10/10` coverage. To add the IP country, WebRTC egress, and IP timezone signals, choose "Turn on network and recheck" below the result.
+That is expected. The network layer is off by default, so the first check uses browser signals only and usually shows `10/10` coverage. To add the IP country, WebRTC egress, Claude endpoint reachability, direct IPv6 egress, and IP timezone signals, choose "Turn on network and recheck" below the result.
 
 ### 2. Why is a Hong Kong IP not scored separately?
 
@@ -358,7 +372,7 @@ Hong Kong is not a manual target; it is identified by the auto profile. With the
 
 ### 3. Does a failed network lookup affect the score?
 
-No. The lookup tries the primary endpoint and then the fallback; only after every endpoint fails is the country signal shown as "lookup failed / not evaluated". Coverage drops, and the missing 20-point weight is not scaled up into risk. A blocked STUN server or unsupported WebRTC likewise only removes the 18-point WebRTC weight and the 4-point IP timezone weight.
+No. The lookup tries the primary endpoint and then the fallback; only after every endpoint fails is the country signal shown as "lookup failed / not evaluated". Coverage drops, and the missing 20-point weight is not scaled up into risk. A blocked STUN server or unsupported WebRTC likewise only removes the 18-point WebRTC weight and the 4-point IP timezone weight. IPv6 or Anthropic endpoint failures only appear in their zero-weight context rows and never affect the score.
 
 ### 4. Can the result prove that an account is safe?
 
@@ -370,7 +384,7 @@ Set `NEXT_PUBLIC_SITE_URL` and rebuild. Without it, the project omits canonical,
 
 ### 6. Can the network layer be disabled?
 
-Yes. Set `NEXT_PUBLIC_IP_INTEL_ENABLED=false` at build time to remove the toggle, IP lookups, and STUN requests, or turn off the network toggle in the settings before a check.
+Yes. Set `NEXT_PUBLIC_IP_INTEL_ENABLED=false` at build time to remove the toggle, IP lookups, STUN, IPv6 lookup, and endpoint probes, or turn off the network toggle in the settings before a check.
 
 ## 📝 Changelog
 
@@ -385,9 +399,12 @@ Yes. Set `NEXT_PUBLIC_IP_INTEL_ENABLED=false` at build time to remove the toggle
 - Reworked the deployment guide around topology choices, ports, reverse proxies, low-memory hosts, updates, rollback, and troubleshooting.
 - Added a post-check "Fix in one click and reduce ban risk" entry that opens the CG-Claude repository after confirmation; the footer now credits both the upstream project and the third-party tool.
 - Added WebRTC egress probing, HTTP / WebRTC egress consistency, IPv6 egress, and IP-vs-system-timezone comparison to the network layer.
+- Added Claude endpoint reachability and fastest-latency probes (claude.ai edge diagnostic path / `www.anthropic.com` / `api.anthropic.com`, zero weight); the claude.ai app is CORP-protected and is not probed directly.
+- Added a direct IPv6 egress lookup with same-family comparison and an ASN / organization egress-type heuristic (zero weight).
+- Added date, time, and number format context; network-toggle copy and privacy notes now cover the new third-party requests.
 - WebRTC probing stays off with the network layer; failures or unsupported browsers only reduce coverage and never change the existing score.
 - Updated copy in all four languages, READMEs, and privacy notes.
-- 87 unit tests, type checking, lint, and static build pass.
+- 128 unit tests, type checking, lint, and static build pass.
 
 ### Roadmap
 
@@ -417,12 +434,13 @@ Please use GitHub Issues: <https://github.com/Brilliant666/check-cc/issues>
 
 ## 💡 Acknowledgements
 
-Thanks to [yacuo/check-cc](https://github.com/yacuo/check-cc) for the upstream code and detection ideas, and to Next.js, React, Tailwind CSS, and Vitest.
+Thanks to [yacuo/check-cc](https://github.com/yacuo/check-cc) for the upstream code and detection ideas; to [TZZ520/claude-environment-check](https://github.com/TZZ520/claude-environment-check) and [HeiGeAi/claude-environment-check](https://github.com/HeiGeAi/claude-environment-check) for public feature ideas; and to Next.js, React, Tailwind CSS, and Vitest. The endpoint reachability, direct IPv6 egress, and egress-type heuristic in this fork are independent implementations and do not copy code from those projects.
 
 ## 🔗 Related projects
 
 - [yacuo/check-cc](https://github.com/yacuo/check-cc): the upstream project for this repository, MIT licensed.
 - [LcodeCoder/CG-Claude](https://github.com/LcodeCoder/CG-Claude): an independent third-party desktop client for local Claude environment checks and configuration on macOS, Windows, and Linux. The post-check "Fix in one click and reduce ban risk" button explains the tool first and opens its repository only after you confirm; CheckCC does not download or install anything, does not send it your check results, and makes no guarantee about its effectiveness or security.
+- [TZZ520/claude-environment-check](https://github.com/TZZ520/claude-environment-check) and [HeiGeAi/claude-environment-check](https://github.com/HeiGeAi/claude-environment-check): public projects referenced for endpoint reachability, direct IPv6 egress, and egress-type hints. This fork is not affiliated with either project.
 
 ## 📄 License and source
 
@@ -436,4 +454,4 @@ Changes in this fork are also released under the MIT License. This fork is not a
 
 ## ⚠️ Disclaimer
 
-CheckCC provides risk hints based on local browser environment signals, optional third-party IP geolocation, and WebRTC egress candidates. It does not represent official Claude or Anthropic judgments. IP geolocation may be inaccurate, WebRTC probing may be blocked by browser or network policy, and the tool cannot identify every VPN, proxy, or relay. Do not use the result as the only basis for account safety, subscription status, or appeal decisions.
+CheckCC provides risk hints based on local browser environment signals, optional third-party IP geolocation, WebRTC egress candidates, direct IPv6 egress, and endpoint reachability. It does not represent official Claude or Anthropic judgments. IP geolocation may be inaccurate, WebRTC probing may be blocked by browser or network policy, endpoint reachability only reflects request completion and latency and cannot prove account, subscription, or region availability, and the tool cannot identify every VPN, proxy, or relay. Do not use the result as the only basis for account safety, subscription status, or appeal decisions.

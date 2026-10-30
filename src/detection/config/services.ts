@@ -19,4 +19,15 @@ export const serviceConfig: Record<string, DetectionServiceConfig> = {
     endpoint: process.env.NEXT_PUBLIC_WEBRTC_STUN_URL?.trim() || "stun:stun.cloudflare.com:3478",
     timeoutMs: 2500,
   },
+  ipv6: {
+    enabled: true,
+    endpoint: process.env.NEXT_PUBLIC_IPV6_ENDPOINT?.trim() || "https://api6.ipify.org?format=json",
+    timeoutMs: 3000,
+  },
+  reachability: {
+    enabled: true,
+    // 覆盖 claude.ai 探测目标；默认使用不受 CORP 限制的边缘诊断路径。
+    endpoint: "https://claude.ai/cdn-cgi/trace",
+    timeoutMs: 3500,
+  },
 };

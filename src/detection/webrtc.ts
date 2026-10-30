@@ -125,7 +125,7 @@ export async function probeWebRtc(options: WebRtcProbeOptions = {}): Promise<Web
   });
 }
 
-function normalizeAddress(address: string) {
+export function normalizeIpAddress(address: string) {
   const value = address.trim().toLowerCase();
   if (!value.includes(":")) return value;
   try {
@@ -139,10 +139,10 @@ function normalizeAddress(address: string) {
 export function analyzeWebRtc(probe: WebRtcProbeResult, httpIp: string | null): WebRtcAnalysis {
   const publicAddresses = probe.publicAddresses;
   const ipv6PublicAddresses = publicAddresses.filter((address) => address.includes(":"));
-  const normalizedHttp = httpIp?.trim() ? normalizeAddress(httpIp) : null;
+  const normalizedHttp = httpIp?.trim() ? normalizeIpAddress(httpIp) : null;
   const comparedAddresses = normalizedHttp ? publicAddresses.filter((address) => address.includes(":") === normalizedHttp.includes(":")) : [];
-  const matchesHttp = normalizedHttp && comparedAddresses.length ? comparedAddresses.every((address) => normalizeAddress(address) === normalizedHttp) : null;
-  const ipv6Leak = normalizedHttp ? (normalizedHttp.includes(":") ? ipv6PublicAddresses.some((address) => normalizeAddress(address) !== normalizedHttp) : ipv6PublicAddresses.length > 0) : null;
+  const matchesHttp = normalizedHttp && comparedAddresses.length ? comparedAddresses.every((address) => normalizeIpAddress(address) === normalizedHttp) : null;
+  const ipv6Leak = normalizedHttp ? (normalizedHttp.includes(":") ? ipv6PublicAddresses.some((address) => normalizeIpAddress(address) !== normalizedHttp) : ipv6PublicAddresses.length > 0) : null;
   return { publicAddresses, ipv6PublicAddresses, comparedAddresses, matchesHttp, ipv6Leak };
 }
 
