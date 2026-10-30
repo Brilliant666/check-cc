@@ -1,0 +1,110 @@
+<!doctype html>
+<!--
+  CheckCC 分享卡片源文件（1200×630）。修改后用无头 Chrome 重新生成 public/og-<lang>.png，lang 取 zh、zh-HK、ru、en：
+    chrome --headless=new --hide-scrollbars --force-device-scale-factor=1 --window-size=1200,630 --screenshot=<仓库路径>/public/og-zh.png "file:///<仓库路径>/docs/og/card.html?lang=zh"
+  右侧面板是示例数据（中国大陆 Windows 浏览器、只看浏览器信号），与 README 截图一致，不含任何真实 IP。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>CheckCC share card</title>
+<style>
+  :root {
+    --cream: #fffaf3;
+    --paper: #f7f2ea;
+    --ink: #0b1220;
+    --clay: #d97757;
+    --hit: #dc2626;
+    --stone: #78716c;
+    --line: #e7e5df;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 78% 18%, rgba(217, 119, 87, 0.22), transparent 42%),
+      linear-gradient(180deg, var(--cream), var(--paper));
+    display: grid;
+    grid-template-columns: 1fr 440px;
+    align-items: center;
+    gap: 56px;
+    padding: 64px 72px;
+  }
+
+  .brand { display: flex; align-items: center; gap: 14px; font-size: 30px; font-weight: 900; }
+  .brand i { width: 16px; height: 16px; border-radius: 50%; background: var(--clay); box-shadow: 0 0 22px rgba(217, 119, 87, 0.55); }
+
+  h1 { margin-top: 44px; font-size: 76px; line-height: 1.08; font-weight: 900; letter-spacing: -0.02em; }
+  html[lang="en"] h1 { font-size: 72px; letter-spacing: -0.03em; }
+  html[lang="ru"] h1 { font-size: 60px; letter-spacing: -0.02em; }
+  html[lang="ru"] .claims { font-size: 25px; }
+  .claims { margin-top: 32px; display: grid; gap: 10px; font-size: 28px; font-weight: 700; color: #44403c; }
+  .domain { margin-top: 44px; font-size: 26px; font-weight: 800; color: var(--clay); }
+
+  .panel {
+    background: #fff;
+    border: 1px solid #e7e2d9;
+    border-radius: 36px;
+    padding: 30px 30px 26px;
+    box-shadow: 0 30px 60px -28px rgba(127, 29, 29, 0.35);
+  }
+  .ring {
+    width: 196px; height: 196px; margin: 0 auto; border-radius: 50%;
+    background: conic-gradient(var(--clay) calc(var(--score) * 3.6deg), var(--line) 0deg);
+    display: grid; place-items: center;
+  }
+  .ring > div {
+    width: 150px; height: 150px; border-radius: 50%; background: #fff;
+    display: grid; place-items: center; text-align: center;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.06);
+  }
+  .score { font-size: 58px; font-weight: 900; line-height: 1; }
+  .of { margin-top: 4px; font-size: 18px; font-weight: 800; color: #a8a29e; }
+
+  .rows { margin-top: 24px; display: grid; gap: 10px; }
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    border-radius: 16px; padding: 12px 16px; font-size: 22px; font-weight: 800;
+  }
+  .row.hit { background: var(--hit); color: #fff; }
+  .row.quiet { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+  .row b { border-radius: 999px; padding: 3px 12px; font-size: 18px; }
+  .row.hit b { background: #fff; color: var(--hit); }
+  .row.quiet b { background: rgba(255, 255, 255, 0.8); }
+</style>
+</head>
+<body>
+  <section>
+    <div class="brand"><i></i>CheckCC</div>
+    <h1 data-t="title"></h1>
+    <div class="claims"><p data-t="claim1"></p><p data-t="claim2"></p></div>
+    <p class="domain">ip.dokitool.com</p>
+  </section>
+
+  <aside class="panel" style="--score: 48">
+    <div class="ring"><div><div><div class="score">48</div><div class="of">/ 100</div></div></div></div>
+    <div class="rows">
+      <div class="row hit"><span data-t="timezone"></span><b>+26</b></div>
+      <div class="row hit"><span data-t="language"></span><b>+20</b></div>
+      <div class="row quiet"><span data-t="fonts"></span><b>+0</b></div>
+    </div>
+  </aside>
+
+<script>
+  const copy = {
+    zh: { lang: "zh-CN", title: "检查 Claude\n封号风险", claim1: "浏览器本地检测，不登录 Claude", claim2: "结果不上传，开源可自部署", timezone: "系统时区", language: "浏览器语言", fonts: "系统自带字体" },
+    "zh-HK": { lang: "zh-HK", title: "檢查 Claude\n封號風險", claim1: "瀏覽器本地檢測，不登入 Claude", claim2: "結果不上傳，開源可自行部署", timezone: "系統時區", language: "瀏覽器語言", fonts: "系統自帶字體" },
+    ru: { lang: "ru", title: "Риск блокировки\nClaude", claim1: "Проверка в браузере, без входа", claim2: "Ничего не загружается, открытый код", timezone: "Часовой пояс", language: "Язык браузера", fonts: "Системные шрифты" },
+    en: { lang: "en", title: "Check Claude\naccount risk", claim1: "Runs in your browser, no Claude login", claim2: "Nothing uploaded, open source", timezone: "System timezone", language: "Browser language", fonts: "OS-bundled fonts" },
+  };
+  const t = copy[new URLSearchParams(location.search).get("lang")] ?? copy.zh;
+  document.documentElement.lang = t.lang;
+  for (const el of document.querySelectorAll("[data-t]")) {
+    const lines = t[el.dataset.t].split("\n");
+    el.replaceChildren(...lines.flatMap((line, i) => (i ? [document.createElement("br"), line] : [line])));
+  }
+</script>
+</body>
+</html>

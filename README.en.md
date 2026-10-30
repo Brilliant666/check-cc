@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  <a href="https://ip.dokitool.com"><strong>Use it online: ip.dokitool.com</strong></a>
+</p>
+
+<p align="center">
   <a href="#overview">Overview</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#how-it-works">How it works</a> ·
@@ -466,7 +470,7 @@ You may use, modify, and redistribute this project freely. Any copy, secondary d
 
 If you redeploy this project, keep the footer credit or repository link so visitors can find the original project.
 
-Changes in this fork are also released under the MIT License. This fork is not affiliated with the upstream project; upstream demo, desktop-app plans, and feedback-group information do not apply to this fork.
+Changes in this fork are also released under the MIT License. This fork is not affiliated with the upstream project; upstream demo, desktop-app plans, and feedback-group information do not apply to this fork. The live site for this fork is [ip.dokitool.com](https://ip.dokitool.com), deployed by this repository's maintainer and unrelated to upstream.
 
 ## ⚠️ Disclaimer
 

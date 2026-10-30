@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  <a href="https://ip.dokitool.com"><strong>在线使用：ip.dokitool.com</strong></a>
+</p>
+
+<p align="center">
   <a href="#项目简介">项目简介</a> ·
   <a href="#页面预览">页面预览</a> ·
   <a href="#功能详解">功能详解</a> ·
@@ -468,7 +472,7 @@ pnpm build
 
 如果你重新部署本项目，请保留页脚署名或仓库链接，方便访问者找到原项目。
 
-本分支的修改同样以 MIT 协议发布。上游项目与本分支没有隶属关系；上游 README 中的在线演示、桌面端计划和反馈群信息不适用于本分支。
+本分支的修改同样以 MIT 协议发布。上游项目与本分支没有隶属关系；上游 README 中的在线演示、桌面端计划和反馈群信息不适用于本分支。本分支的在线站点是 [ip.dokitool.com](https://ip.dokitool.com)，由本仓库维护者部署，与上游无关。
 
 ## ⚠️ 免责声明
 

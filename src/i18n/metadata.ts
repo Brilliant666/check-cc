@@ -23,13 +23,25 @@ export function localePath(locale: LocaleCode) {
 }
 
 export function languageAlternates() {
-  return Object.fromEntries(Object.entries(localeRoutes).map(([code, route]) => [htmlLang[code as LocaleCode], route.slug ? `/${route.slug}` : "/"]));
+  const languages = Object.fromEntries(Object.entries(localeRoutes).map(([code, route]) => [htmlLang[code as LocaleCode], route.slug ? `/${route.slug}` : "/"]));
+  // Visitors whose language matches none of the pages get the Simplified Chinese home page.
+  return { ...languages, "x-default": "/" };
 }
+
+// Share cards in public/, rendered from docs/og/card.html.
+const shareImages: Record<LocaleCode, string> = {
+  zh: "/og-zh.png",
+  "zh-HK": "/og-zh-HK.png",
+  ru: "/og-ru.png",
+  en: "/og-en.png",
+};
 
 export function buildLocaleMetadata(locale: LocaleCode): Metadata {
   const copy = messages[locale];
   const path = localePath(locale);
   const title = locale === "zh" ? copy.hero.title : `${copy.hero.title}｜CheckCC`;
+  // Crawlers need an absolute image URL, so the card is only declared once the site URL is known.
+  const image = siteUrl ? { url: `${siteUrl}${shareImages[locale]}`, width: 1200, height: 630, alt: copy.hero.title } : null;
   return {
     ...(siteUrl ? { metadataBase: new URL(siteUrl) } : {}),
     title,
@@ -42,11 +54,13 @@ export function buildLocaleMetadata(locale: LocaleCode): Metadata {
       title: copy.hero.title,
       description: copy.hero.subtitle,
       locale: openGraphLocales[locale],
+      ...(image ? { images: [image] } : {}),
     },
     twitter: {
       card: "summary_large_image",
       title: copy.hero.title,
       description: copy.hero.subtitle,
+      ...(image ? { images: [image.url] } : {}),
     },
     robots: {
       index: true,
