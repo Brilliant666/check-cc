@@ -64,7 +64,7 @@ if [ "${STATUS:-}" != "healthy" ]; then
 fi
 
 # Read the actual published mapping so shell overrides and .env both work.
-MAPPING="$("${COMPOSE[@]}" port checkcc 80 2>/dev/null | head -n 1 || true)"
+MAPPING="$("${COMPOSE[@]}" port checkcc 8080 2>/dev/null | head -n 1 || true)"
 BIND="${MAPPING%:*}"
 PORT="${MAPPING##*:}"
 BIND="${BIND#[}"

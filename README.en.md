@@ -276,7 +276,7 @@ cp .env.example .env
 Decide three things before deploying:
 
 - **Is there a reverse proxy?** With Nginx / Caddy / Traefik already on the host, set `CHECKCC_BIND=127.0.0.1` and proxy to `127.0.0.1:<CHECKCC_PORT>`.
-- **Is the port free?** `8080` is only a default. If it is taken, change `CHECKCC_PORT`; the container always listens on 80 internally.
+- **Is the port free?** `8080` is only a default. If it is taken, change `CHECKCC_PORT`; the container always listens on 8080 internally.
 - **Is there a public domain?** Set `NEXT_PUBLIC_SITE_URL=https://your-domain`; otherwise canonical, hreflang, and sitemap entries are omitted.
 
 `NEXT_PUBLIC_*` is read at build time and requires a rebuild after changes; `CHECKCC_BIND` and `CHECKCC_PORT` apply at startup. Listening on `0.0.0.0:8080` is intended for temporary use; expose only 80/443 in production and terminate HTTPS at the reverse proxy.

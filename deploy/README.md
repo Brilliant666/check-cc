@@ -141,7 +141,7 @@ CHECKCC_BIND=127.0.0.1 CHECKCC_PORT=18081 ./deploy/deploy.sh
 | `NEXT_PUBLIC_WEBRTC_STUN_URL` | `stun:stun.cloudflare.com:3478` | 构建时 | 网络层开启时用于收集 WebRTC 出口候选的 STUN 地址；浏览器会直接连接它 |
 | `NEXT_PUBLIC_IPV6_ENDPOINT` | `https://api6.ipify.org?format=json` | 构建时 | IPv6 直连出口查询接口，返回 JSON 中的 `ip` 字段；必须是只解析 AAAA 记录的 HTTPS 地址 |
 | `CHECKCC_BIND` | `0.0.0.0` | 启动时 | 宿主机监听地址；按上面的拓扑选择 `127.0.0.1`、`0.0.0.0` 或指定网卡 IP |
-| `CHECKCC_PORT` | `8080` | 启动时 | 宿主机端口；可以改成任意空闲端口，容器内部始终监听 80 |
+| `CHECKCC_PORT` | `8080` | 启动时 | 宿主机端口；可以改成任意空闲端口，容器内部始终监听 8080 |
 
 说明：
 
@@ -289,7 +289,7 @@ curl -v "http://127.0.0.1:${PORT}/healthz"
 | 反向代理返回 502 | 代理目标端口不对、CheckCC 容器不健康，或代理在另一个容器里访问了错误的 `127.0.0.1` | `docker compose ps`、`docker compose logs`；直接 curl 宿主机端口；容器代理要用同一 Docker 网络的服务名 |
 | `/en` 或 `/hong-kong` 返回 404 | 访问地址缺少末尾 `/`，或静态托管没有启用目录重定向 | 用 `/en/`、`/hong-kong/` 访问；直接访问宿主机端口对比；静态托管需保留目录式路由 |
 | 网络层一直失败 | 第三方接口被浏览器网络、CORS 或限流拦截，不是服务器故障 | 看浏览器控制台；`ipwho.is` 失败会自动尝试 `ipapi.co`；两个都失败时页面会跳过 IP 信号，Nginx 日志不会有帮助 |
-| 容器一直是 `unhealthy` | 容器启动失败、端口未监听或健康检查命令失败 | `docker compose logs --tail=100 checkcc`；`docker inspect checkcc`；确认容器内 80 端口正常 |
+| 容器一直是 `unhealthy` | 容器启动失败、端口未监听或健康检查命令失败 | `docker compose logs --tail=100 checkcc`；`docker inspect checkcc`；确认容器内 8080 端口正常 |
 | SSH 隧道连接失败 | 本地端口被占用、服务器端口写错，或 SSH 会话已断开 | 换一个本地端口；确认 `CHECKCC_PORT`；保持 SSH 会话，必要时用 `-v` 查看原因 |
 | `./deploy/deploy.sh: Permission denied` | 文件没有执行权限（常见于下载 zip 后） | `chmod +x deploy/deploy.sh` 后重试 |
 
@@ -312,6 +312,16 @@ curl -v "http://127.0.0.1:${PORT}/healthz"
 - 浏览器默认不发起 IP 查询；开启网络层后，`ipwho.is` 返回 429 时自动回退 `ipapi.co`，两个接口都失败时跳过网络信号且不抬高分数。
 
 版本号只是这次验证的环境记录；请按 Docker 官方支持范围选择版本。本次验证未包含域名、TLS 和公网暴露配置。
+
+这次验证之后，容器改为以非 root 用户运行的 `nginx-unprivileged` 镜像（容器内监听 8080），根文件系统只读，并去掉了全部 Linux capabilities。
+
+### 容器加固
+
+- 基础镜像按 digest 锁定，见 `Dockerfile` 顶部注释里的刷新命令。
+- 运行镜像是 `nginxinc/nginx-unprivileged`，以 uid 101 运行，容器内监听 8080。
+- `docker-compose.yml` 设置了 `read_only: true`、只给 `/tmp` 挂 16 MB 的 tmpfs，并 `cap_drop: ALL`。
+- 构建时由 `deploy/csp.mjs` 按 `NEXT_PUBLIC_*` 端点生成 `Content-Security-Policy`。`connect-src` 只允许本站、IP 查询接口、IPv6 查询接口和三个 Anthropic 探测地址。修改这些端点后需要重新构建。关闭网络层（`NEXT_PUBLIC_IP_INTEL_ENABLED=false`）时 `connect-src` 只剩 `'self'`。
+- Next.js 静态导出会内联页面数据脚本，所以 `script-src` 保留 `'unsafe-inline'`。
 
 ## 10. 说明
 

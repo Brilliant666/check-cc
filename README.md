@@ -278,7 +278,7 @@ cp .env.example .env
 部署前先确定三件事：
 
 - **前面有没有反向代理**：已有 Nginx / Caddy / Traefik 时设 `CHECKCC_BIND=127.0.0.1`，由代理转发到 `127.0.0.1:<CHECKCC_PORT>`；
-- **端口是否空闲**：`8080` 只是默认值，被占用时改 `CHECKCC_PORT`；容器内部始终监听 80；
+- **端口是否空闲**：`8080` 只是默认值，被占用时改 `CHECKCC_PORT`；容器内部始终监听 8080；
 - **有没有正式域名**：有则设置 `NEXT_PUBLIC_SITE_URL=https://你的域名`，否则 canonical、hreflang 和 sitemap 不生成。
 
 `NEXT_PUBLIC_*` 在构建时生效，修改后必须重新构建；`CHECKCC_BIND` 和 `CHECKCC_PORT` 在启动时生效。默认监听 `0.0.0.0:8080`，只建议临时使用；正式环境应只暴露 80/443，并由反向代理接管 HTTPS。
