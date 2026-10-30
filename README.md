@@ -58,13 +58,13 @@
 
 ![CheckCC 浏览器端检测结果](./docs/images/readme/detection-browser-only.png)
 
-浏览器端检测会展示命中的信号、权重贡献、风险分和覆盖率。上图是一个示例中国大陆环境：时区、语言、字体和 Intl 区域同时命中，覆盖率 `10/10`，未向第三方发送 IP 查询；风险分取决于命中的信号组合。
+浏览器端检测会展示命中的信号、权重贡献、风险分和覆盖率。上图是一个示例中国大陆 Windows 环境：时区和浏览器语言命中，覆盖率 `10/10`，未向第三方发送 IP 查询。Windows 自带的雅黑、宋体只作为上下文显示，不计分；语言文字和 Intl 区域与浏览器语言同组，组内已达上限，所以显示 +0。风险分取决于命中的信号组合。
 
 ### 🌐 开启网络层后重测
 
 ![CheckCC 开启网络层后的检测结果](./docs/images/readme/detection-network.png)
 
-点击“开启网络层并重测”后，浏览器会直连 `ipwho.is` 查询出口 IP；如果主接口失败或被限流，会自动回退到 `ipapi.co`，并在提示中显示实际使用的服务。同一次网络层检测还会通过 STUN 收集 WebRTC 出口候选、向 IPv6 专用接口查询直连出口、直连 Anthropic 三个探测目标（claude.ai 边缘诊断路径、www.anthropic.com、api.anthropic.com），用于和 HTTP 出口、IP 时区交叉核对。加权信号最多仍为 `13/13`；信号面板最多展示 29 行（14 项浏览器信号 + 15 项网络信号），其中 IP 国家、WebRTC 出口和 IP 时区加权，其余为上下文。浏览器不支持 WebRTC、STUN 被拦截或没有可比候选时，对应信号标记为“未检测”，覆盖率会下降；端点或 IPv6 探测失败只影响各自的零权重信号。
+上图使用示例数据：IP 为公共 DNS 地址，WebRTC 显示为不支持，不代表任何真实访客。点击“开启网络层并重测”后，浏览器会直连 `ipwho.is` 查询出口 IP；如果主接口失败或被限流，会自动回退到 `ipapi.co`，并在提示中显示实际使用的服务。同一次网络层检测还会通过 STUN 收集 WebRTC 出口候选、向 IPv6 专用接口查询直连出口、直连 Anthropic 三个探测目标（claude.ai 边缘诊断路径、www.anthropic.com、api.anthropic.com），用于和 HTTP 出口、IP 时区交叉核对。加权信号最多仍为 `13/13`；信号面板最多展示 29 行（14 项浏览器信号 + 15 项网络信号），其中 IP 国家、WebRTC 出口和 IP 时区加权，其余为上下文。浏览器不支持 WebRTC、STUN 被拦截或没有可比候选时，对应信号标记为“未检测”，覆盖率会下降；端点或 IPv6 探测失败只影响各自的零权重信号。
 
 ### 🇭🇰 香港环境独立画像
 
@@ -205,12 +205,13 @@ review-check-cc/
 │  │  ├─ robots.ts                # robots.txt
 │  │  └─ sitemap.ts               # sitemap.xml
 │  ├─ components/
-│  │  ├─ detector/Detector.tsx    # 检测流程、设置、报告导出
+│  │  ├─ detector/Detector.tsx    # 检测流程、设置、报告导出界面
 │  │  ├─ home/HomeContent.tsx     # 首页内容与结构化数据
 │  │  └─ layout/                  # 页头、页脚、移动菜单
 │  ├─ detection/
-│  │  ├─ client-engine.ts         # 浏览器环境采样与信号评分
-│  │  ├─ scoring.ts               # 地区画像匹配
+│  │  ├─ client-engine.ts         # 浏览器环境采样、信号评分与分组上限
+│  │  ├─ scoring.ts               # 地区画像匹配、风险分档与 token 匹配
+│  │  ├─ merge-signals.ts         # 合并浏览器信号与网络层结果，生成展示用信号列表
 │  │  ├─ ip-intel.ts              # 可选网络层查询与解析
 │  │  ├─ reachability.ts          # Claude 端点可达性与延迟探测
 │  │  ├─ ipv6.ts                  # IPv6 直连出口查询与同协议族对比
@@ -222,8 +223,8 @@ review-check-cc/
 │  ├─ i18n/                       # 四语言文案与元信息
 │  └─ regions/                    # 中国大陆 / 香港 / 俄罗斯 / 伊朗画像
 ├─ docs/images/                   # README 截图
-├─ deploy/                        # VPS Docker 部署脚本与 Nginx 配置
-├─ Dockerfile                     # 多阶段构建：静态导出 + Nginx
+├─ deploy/                        # VPS 部署脚本、Nginx 配置与 CSP 生成脚本 csp.mjs
+├─ Dockerfile                     # 多阶段构建：静态导出 + 非 root Nginx（镜像按 digest 锁定）
 ├─ docker-compose.yml             # VPS 一键启动配置
 ├─ .env.example                   # 部署环境变量模板
 ├─ shell/deploy-restart-hot.sh    # 本地一键启动脚本
@@ -346,14 +347,14 @@ pnpm build
 ```bash
 pnpm lint        # ESLint
 pnpm typecheck   # TypeScript
-pnpm test        # Vitest，128 项测试
+pnpm test        # Vitest，148 项测试
 pnpm check       # lint + typecheck + test
 pnpm build       # 静态导出
 ```
 
-GitHub Actions 会在 push 和 pull request 时执行 lint、类型检查、单元测试和静态构建。
+GitHub Actions 会在 push 和 pull request 时执行 lint、类型检查、单元测试和静态构建；用到的 actions 按 commit SHA 锁定。CI 不构建 Docker 镜像，容器相关改动需要在有 Docker 的机器上另行验证。
 
-测试覆盖评分不因覆盖率不足而放大、未知信号、零权重信号、IP 地址分类、IP 查询解析/超时/失败、ICE 候选解析、WebRTC 出口与 HTTP 出口对比、IPv6 候选、时区偏移对比、国家画像匹配、香港与大陆画像区分、端点可达性超时与汇总、IPv6 直连出口解析与同协议族对比、出口类型启发式、日期/数字格式上下文、报告导出和多语言文案完整性。
+测试覆盖评分不因覆盖率不足而放大、未知信号、零权重信号、IP 地址分类、IP 查询解析/超时/失败、ICE 候选解析、WebRTC 出口与 HTTP 出口对比、IPv6 候选、时区偏移对比、国家画像匹配、香港与大陆画像区分、端点可达性超时与汇总、IPv6 直连出口解析与同协议族对比、出口类型启发式、日期/数字格式上下文、报告导出和多语言文案完整性；以及系统自带中文字体不计分、浏览器/设备特征按 token 匹配、相关信号分组上限、风险分档阈值、报告中检测地区与检测目标分开记录、WebRTC 多出口视为一致，和网络层结果合并（`mergeSignals`）。
 
 ## 🗺️ 页面路由
 
@@ -410,7 +411,17 @@ GitHub Actions 会在 push 和 pull request 时执行 lint、类型检查、单�
 - 新增日期、时间与数字格式上下文；网络层开关文案与隐私说明同步覆盖新的第三方请求
 - WebRTC 探测默认随网络层关闭，失败或不受支持时只降低覆盖率，不改变已有分数
 - 四语言文案、README 和隐私说明同步更新
-- 128 项单元测试、类型检查、Lint 和静态构建通过
+- 评分修正：Windows / macOS / Linux 自带的中文字体只展示不计分，避免普通海外用户被误判
+- 评分修正：时区、语言、字体三组相关信号分组计分，组内合计不超过最大权重，浏览器层最高 80 分；分数改为“xx / 100”展示，不再使用百分号
+- 评分修正：页面、报告和建议统一使用 70 / 31 两档阈值；删除未使用的旧评分路径
+- 浏览器和设备特征改为按完整 token 匹配，`360`、`vivo` 等不再误命中版本号或其他单词
+- WebRTC 只要有一个同协议族候选等于 HTTP 出口就视为一致，其他出口作为上下文展示
+- 出口类型先匹配具体服务商名称，再用泛化关键词；补充 Chinanet、CMNET、Unicom
+- 报告中的“检测地区”改为检测出的地区画像，用户选择的“检测目标”单独记录
+- 网络层结果合并逻辑从检测组件抽出为可单测的 `mergeSignals`；俄语结论文案移入语言包
+- 部署加固：运行镜像改为非 root 的 `nginx-unprivileged`（容器内监听 8080），容器只读并去掉全部 capabilities；构建时生成 CSP，`connect-src` 只允许实际用到的第三方地址
+- 基础镜像按 digest、CI actions 按 commit SHA 锁定
+- 148 项单元测试、类型检查、Lint 和静态构建通过；新镜像已在 Debian 13 实机验证
 
 ### 未来计划
 
