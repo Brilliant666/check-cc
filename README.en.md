@@ -171,7 +171,7 @@ With the network layer on, reports also contain the detected IP, country, ASN, n
 ![CheckCC privacy note](./docs/images/readme/privacy-en.png)
 
 - Checking does not require a Claude login and does not read your account, password, cookies, or chat content.
-- The network layer is off by default; a default check uses browser signals only and sends no IP lookup, STUN, IPv6 lookup, or Anthropic endpoint request to a third party.
+- The network layer is off by default; a default check uses browser signals only and sends no IP lookup, STUN, IPv6 lookup, or Anthropic endpoint request to a third party. Self-hosters can set `NEXT_PUBLIC_NETWORK_LAYER_DEFAULT=on` to turn it on by default. The risk-signals section then says the site turns the network layer on by default, and visitors can still turn it off in the check settings.
 - When on, your browser sends an HTTPS request directly to the configured third-party IP geolocation service (`ipwho.is` by default, falling back to `get.geojs.io` and then `ipapi.co`), gathers WebRTC candidates through the default `stun.cloudflare.com:3478`, queries an IPv6-only lookup (`api6.ipify.org` by default) for the direct IPv6 exit, and contacts claude.ai's edge diagnostic path, `www.anthropic.com`, and `api.anthropic.com` directly. The claude.ai app returns a CORP header that blocks cross-origin browser probes, so the app page itself is not requested. Every service that is actually contacted will see your public IP. Requests do not pass through this site's server, and this site does not receive, forward, or store the result. The success notice shows which IP lookup service was actually used.
 - When an IP lookup service returns 429 (rate limited), the browser records its hostname and a one-hour cooldown in this session's `sessionStorage` and skips it until then. Only the hostname and time are stored, never the IP or lookup result, and they are cleared when the tab closes. Lookup results are not cached, so every check queries the current exit.
 - Endpoint probes use `no-cors` and `cache: "no-store"`, send no cookies or referring page, and do not read response content; they only indicate whether the browser network can complete the request, not whether an account or region is available.
@@ -314,7 +314,8 @@ The network layer reads these environment variables at build time; rebuild after
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | Set to `false` to remove the network layer entirely: no toggle, no IP lookup, STUN, IPv6 lookup, or endpoint probe. `true` only makes the opt-in available; the first check still sends no IP request by default. |
+| `NEXT_PUBLIC_IP_INTEL_ENABLED` | `true` | Set to `false` to remove the network layer entirely: no toggle, no IP lookup, STUN, IPv6 lookup, or endpoint probe. `true` provides the network-layer toggle; whether it starts ticked is set by the next variable. |
+| `NEXT_PUBLIC_NETWORK_LAYER_DEFAULT` | `off` | Set to `on` to tick the network-layer toggle by default, so clicking the check sends the IP lookup, STUN, IPv6 lookup, and endpoint probes with no extra step. Visitors can still untick it in the check settings. Has no effect when `NEXT_PUBLIC_IP_INTEL_ENABLED=false`. |
 | `NEXT_PUBLIC_IP_INTEL_ENDPOINT` | `https://ipwho.is/` | Primary endpoint. Must be an HTTPS, CORS-enabled endpoint that the browser can call directly. |
 | `NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT` | `https://get.geojs.io/v1/ip/geo.json,https://ipapi.co/json/` | Tried in order when the primary endpoint fails, times out, or is rate-limited. Separate multiple endpoints with commas. Set it to an empty string to disable fallbacks. The success notice shows which service was used. |
 | `NEXT_PUBLIC_WEBRTC_STUN_URL` | `stun:stun.cloudflare.com:3478` | STUN server used when the network layer is on; the browser connects to it directly. Rebuild after changing it. |
@@ -370,7 +371,7 @@ Tests cover score non-inflation under partial coverage, unknown signals, zero-we
 
 ### 1. Why does the first check not query my IP?
 
-That is expected. The network layer is off by default, so the first check uses browser signals only and usually shows `10/10` coverage. To add the IP country, WebRTC egress, Claude endpoint reachability, direct IPv6 egress, and IP timezone signals, choose "Turn on network and recheck" below the result.
+That is expected. The network layer is off by default, so the first check uses browser signals only and usually shows `10/10` coverage. (A site built with `NEXT_PUBLIC_NETWORK_LAYER_DEFAULT=on` queries the IP on the first check.) To add the IP country, WebRTC egress, Claude endpoint reachability, direct IPv6 egress, and IP timezone signals, choose "Turn on network and recheck" below the result.
 
 ### 2. Why is a Hong Kong IP not scored separately?
 

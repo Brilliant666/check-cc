@@ -15,7 +15,7 @@ export type {
 } from "./types";
 
 export { runnerConfig } from "./runner";
-export { serviceConfig } from "./services";
+export { networkLayerDefaultOn, serviceConfig } from "./services";
 export { signalConfig } from "./signals";
 export { stepConfig } from "./steps";
 

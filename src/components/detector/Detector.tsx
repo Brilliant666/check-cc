@@ -14,7 +14,7 @@ import {
   type SignalView,
 } from "@/detection/client-engine";
 import { detectorLocaleText, type DetectorLocaleText } from "@/detection/locale";
-import { detectionConfig } from "@/detection/config";
+import { detectionConfig, networkLayerDefaultOn } from "@/detection/config";
 import { lookupNetworkIntel, parseEndpointList, providerHost, sessionCooldown, type NetworkIntel } from "@/detection/ip-intel";
 import { mergeSignals, type NetworkState } from "@/detection/merge-signals";
 import { buildJsonReport, buildTextReport, reportFilename } from "@/detection/report";
@@ -115,10 +115,10 @@ export function Detector({ locale = "zh" }: Props) {
   const [webrtcProbe, setWebrtcProbe] = useState<WebRtcProbeResult | null>(null);
   const [reachabilityProbe, setReachabilityProbe] = useState<ReachabilityResult[] | null>(null);
   const [ipv6Probe, setIpv6Probe] = useState<Ipv6ProbeResult | null>(null);
-  const [networkEnabled, setNetworkEnabled] = useState(false);
-  const [networkUsed, setNetworkUsed] = useState(false);
+  const [networkEnabled, setNetworkEnabled] = useState(networkLayerDefaultOn);
+  const [networkUsed, setNetworkUsed] = useState(networkLayerDefaultOn && ipIntelAvailable);
   const [networkProviderLabel, setNetworkProviderLabel] = useState("");
-  const [networkState, setNetworkState] = useState<NetworkState>("disabled");
+  const [networkState, setNetworkState] = useState<NetworkState>(networkLayerDefaultOn && ipIntelAvailable ? "idle" : "disabled");
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [activeSignal, setActiveSignal] = useState(-1);
@@ -240,7 +240,9 @@ export function Detector({ locale = "zh" }: Props) {
   const animatedLevel = riskLevel(animatedScore);
   const riskLabel = !ringActive ? detectorText.risk.waiting : !hasChecked ? detectorText.risk.checking : animatedLevel === "none" ? (fullCoverage ? detectorText.risk.supported : detectorText.risk.unknown) : animatedLevel === "high" ? detectorText.risk.blocked : animatedLevel === "medium" ? detectorText.risk.high : detectorText.risk.light;
   const riskLabelClass = !ringActive ? "bg-stone-100 text-stone-500" : !hasChecked ? "bg-blue-50 text-blue-600" : animatedLevel === "none" ? "bg-emerald-50 text-emerald-700" : animatedLevel === "high" ? "bg-red-50 text-red-600" : animatedLevel === "medium" ? "bg-orange-50 text-orange-700" : "bg-amber-50 text-amber-700";
-  const networkNoteTemplate = !networkUsed
+  // Before a check runs, the note follows the checkbox so it never contradicts the settings.
+  const networkNoteActive = ringActive ? networkUsed : networkEnabled && ipIntelAvailable;
+  const networkNoteTemplate = !networkNoteActive
     ? detectorText.network.disabled
     : !hasChecked
       ? networkState === "checking" ? detectorText.network.checking : detectorText.network.idle

@@ -8,6 +8,10 @@ export const DEFAULT_IP_INTEL_FALLBACKS = "https://get.geojs.io/v1/ip/geo.json,h
 const ipIntelFallbackEnv = process.env.NEXT_PUBLIC_IP_INTEL_FALLBACK_ENDPOINT;
 const ipIntelFallbackEndpoint = ipIntelFallbackEnv === undefined ? DEFAULT_IP_INTEL_FALLBACKS : ipIntelFallbackEnv.trim();
 const ipIntelEnabled = process.env.NEXT_PUBLIC_IP_INTEL_ENABLED?.trim().toLowerCase() !== "false";
+// Whether the network-layer checkbox starts ticked. Off unless explicitly "on"/"true", so a
+// self-hosted copy stays browser-only by default; visitors can still change it in the settings.
+const networkDefaultEnv = process.env.NEXT_PUBLIC_NETWORK_LAYER_DEFAULT?.trim().toLowerCase();
+export const networkLayerDefaultOn = ipIntelEnabled && (networkDefaultEnv === "on" || networkDefaultEnv === "true");
 
 export const serviceConfig: Record<string, DetectionServiceConfig> = {
   ipIntel: {
