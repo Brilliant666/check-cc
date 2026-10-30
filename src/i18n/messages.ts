@@ -1,4 +1,5 @@
 // CheckCC 的多语言文案配置，用于集中维护中文、繁体中文、俄文和英文页面内容。
+import { enFaqs, ruFaqs, zhFaqs, zhHkFaqs } from "./faqs";
 export type LocaleCode = "zh" | "zh-HK" | "ru" | "en";
 export type LocaleSlug = "hong-kong" | "russia" | "en";
 
@@ -55,17 +56,6 @@ const zhChecks: Array<[string, string]> = [
   ["出口类型启发式", "根据 ASN 与网络组织名称提示住宅宽带、运营商、数据中心或未知类型，仅作上下文参考，不参与评分。"],
 ];
 
-const zhFaqs: Array<[string, string]> = [
-  ["Claude 封号是什么原因？", "快速了解常见封号原因，以及环境画像异常带来的账号风险。"],
-  ["Claude 封号原因有哪些？", "梳理 IP、地区、语言、时区、支付方式等常见风险因素。"],
-  ["Claude 封号机制是什么？", "从风控信号角度理解账号限制、异常环境和地区画像。"],
-  ["Claude 封号后还能解封吗？", "了解账号受限后的处理思路，以及申诉前需要确认的环境问题。"],
-  ["Claude 封号会退款吗？", "了解订阅受限后的退款可能性、付款渠道和账号状态影响。"],
-  ["如何申请 Claude 账号？", "申请账号前先确认运行环境，减少注册、验证和订阅异常。"],
-  ["如何申请 Claude API？", "申请 API 前检查 IP、地区和环境一致性，减少开通风险。"],
-  ["Claude Code 怎么申请？", "了解 Claude Code 与 Claude Pro 订阅相关的环境风险。"],
-];
-
 const enChecks: Array<[string, string]> = [
   ["Regional profile consistency", "Correlate browser language, Intl locale, system timezone, and localization settings to detect obvious regional conflicts."],
   ["Browser identity profile", "Combine browser language, UA hints, and Intl configuration to check whether browser identity signals agree with each other."],
@@ -76,17 +66,6 @@ const enChecks: Array<[string, string]> = [
   ["Claude endpoint reachability", "Optionally contacts claude.ai's Cloudflare edge diagnostic path, www.anthropic.com, and api.anthropic.com directly from the browser. Only completion and latency are observed; response content is not read. The claude.ai app is protected by a cross-origin policy and cannot be probed directly."],
   ["Dual-stack egress check", "Optionally reads the direct IPv6 exit from an IPv6-only lookup service and compares it with the HTTP exit in the same address family. A different family is not treated as a leak."],
   ["Egress type heuristic", "Uses ASN and network organization names to label residential broadband, carrier, datacenter, or unknown egress. This is context only and never affects the score."],
-];
-
-const enFaqs: Array<[string, string]> = [
-  ["Why can a Claude account be restricted?", "Learn common restriction reasons and how inconsistent environment profiles can increase account risk."],
-  ["What are common Claude restriction factors?", "IP region, language, timezone, payment method, device profile, and network exit consistency are common risk signals."],
-  ["How does Claude account risk detection work?", "Risk systems usually evaluate multiple environment and behavior signals instead of a single IP address."],
-  ["Can a restricted Claude account be recovered?", "Before appealing, check whether IP, timezone, language, and device signals are consistent and stable."],
-  ["Will Claude refund after account restrictions?", "Refund outcomes may depend on subscription state, payment channel, account status, and official policy."],
-  ["How should I prepare before creating a Claude account?", "Check your runtime environment first to reduce registration, verification, and subscription issues."],
-  ["How should I prepare before applying for Claude API?", "Verify that your IP, region, browser language, and environment profile are consistent before applying."],
-  ["How does Claude Code relate to environment risk?", "Claude Code and Claude Pro usage can still be affected by inconsistent account and runtime environment signals."],
 ];
 
 export const messages: Record<LocaleCode, Messages> = {
@@ -115,7 +94,7 @@ export const messages: Record<LocaleCode, Messages> = {
     regionsTitle: "重點地區檢測",
     regions: [{ name: "中國內地", risk: "高風險", desc: "檢測簡體中文環境、UTC+8 時區、中文字體，以及可選的網絡出口國家。" }, { name: "香港", risk: "重點檢測", desc: "自動檢測會結合繁體中文、香港時區與瀏覽器語言識別香港，並使用獨立畫像；開啟網絡層時，香港 IP 會單獨核驗。" }, { name: "俄羅斯", risk: "高風險", desc: "檢測俄語環境、俄羅斯時區，以及可選的網絡出口國家。" }],
     privacy: { eyebrow: "Privacy", title: "我們如何保護你的檢測私隱？", desc: "CheckCC 只分析完成環境風險評估所需的技術信號，不要求登入 Claude，也不會讀取帳號敏感內容。", items: [["會上傳我的帳號資料嗎？", "不會。CheckCC 不需要登入 Claude，也不會讀取或保存帳號、密碼、Cookie 等敏感資訊。"], ["檢測結果會被保存嗎？", "不會保存個人檢測結果。檢測僅用於本次環境風險判斷，不會關聯你的 Claude 帳號。"], ["網站會統計訪問資料嗎？", "目前版本未接入第三方訪問統計腳本，也不會收集 Claude 帳號或檢測報告內容。"], ["檢測過程會分析哪些信號？", "主要分析瀏覽器環境、語言、時區、地區畫像和設備指紋一致性；網絡層開啟時，還會由瀏覽器直連第三方 IP 地理服務查詢出口 IP、國家、ASN 與網絡組織，直連 STUN 收集 WebRTC 候選，並請求 claude.ai 邊緣診斷路徑、www.anthropic.com、api.anthropic.com 與 IPv6 查詢服務。端點探測不讀取回應內容。"]] },
-    faq: { title: "Claude 環境檢測與封號風險 FAQ", items: [["Claude 封號是甚麼原因？", "快速了解常見封號原因，以及環境畫像異常帶來的帳號風險。"], ["Claude 封號原因有哪些？", "梳理 IP、地區、語言、時區、付款方式等常見風險因素。"], ["Claude 封號機制是甚麼？", "從風控信號角度理解帳號限制、異常環境和地區畫像。"], ["Claude 封號後還能解封嗎？", "了解帳號受限後的處理思路，以及申訴前需要確認的環境問題。"], ["Claude 封號會退款嗎？", "了解訂閱受限後的退款可能性、付款渠道和帳號狀態影響。"], ["如何申請 Claude 帳號？", "申請帳號前先確認運行環境，減少註冊、驗證和訂閱異常。"], ["如何申請 Claude API？", "申請 API 前檢查 IP、地區和環境一致性，減少開通風險。"], ["Claude Code 怎麼申請？", "了解 Claude Code 與 Claude Pro 訂閱相關的環境風險。"]] },
+    faq: { title: "Claude 環境檢測與封號風險 FAQ", items: zhHkFaqs },
     footer: { title: "CheckCC 是甚麼？", desc: "CheckCC 是面向 Claude 用戶的瀏覽器環境檢測工具，圍繞 Claude 環境檢測、封號風險、地區畫像、網絡出口校驗和瀏覽器環境特徵進行綜合分析。", infoTitle: "通用資訊", feature: "功能：Claude 運行環境檢測與風險指數報告", note: "說明：檢測結果僅供參考，Claude 官方政策與支援地區可能變化", credit: "本項目基於 yacuo/check-cc 的 MIT 許可程式碼構建。", related: "第三方工具" },
     detector: { title: "命中的檢測信號", signalCount: (count, done) => done ? `命中${count}個檢測信號` : `共展示${count}項`, signalHitSummary: (hits, total) => `命中 ${hits} / 共 ${total} 項`, targetTitle: "選擇檢測目標", targetDesc: "預設自動檢測，也可以指定中國內地或俄羅斯；香港環境由自動檢測畫像單獨識別。", cardTags: ["Claude 環境檢測", "Claude 封號風險", "運行環境檢查"], loadingText: "正在執行多維度檢測...", idleCta: "立即檢測 Claude 環境", idleReport: "點擊檢測，生成 Claude 環境風險報告", riskPrefix: "環境風險" },
   },
@@ -127,7 +106,7 @@ export const messages: Record<LocaleCode, Messages> = {
     regionsTitle: "Ключевые регионы",
     regions: [{ name: "Китай", risk: "Высокий риск", desc: "Проверка упрощённого китайского, часового пояса UTC+8, китайских шрифтов и, по желанию, страны сетевого выхода." }, { name: "Гонконг", risk: "Отдельная проверка", desc: "Автопроверка распознаёт Гонконг по традиционному китайскому, часовому поясу и языку браузера и использует отдельный профиль; при включённом сетевом слое IP Гонконга проверяется отдельно." }, { name: "Россия", risk: "Высокий риск", desc: "Проверка русского языка, часового пояса России и, по желанию, страны сетевого выхода." }],
     privacy: { eyebrow: "Privacy", title: "Как CheckCC защищает приватность проверки?", desc: "CheckCC анализирует только технические сигналы, необходимые для оценки риска среды. Вход в Claude не требуется, содержимое аккаунта не читается.", items: [["Загружаются ли данные моего аккаунта?", "Нет. CheckCC не требует входа в Claude и не читает логин, пароль, Cookie или другие чувствительные данные аккаунта."], ["Сохраняются ли результаты проверки?", "Персональные результаты не сохраняются. Проверка используется только для текущей оценки риска среды и не связывается с аккаунтом Claude."], ["Используется ли аналитика сайта?", "Текущая версия не подключает сторонние скрипты веб-аналитики и не собирает данные аккаунта Claude или содержимое отчётов."], ["Какие сигналы анализируются?", "В основном анализируются среда браузера, язык, часовой пояс, региональный профиль и согласованность отпечатка устройства. При включённом сетевом слое браузер напрямую запрашивает у стороннего геосервиса IP, страну, ASN и сетевую организацию, подключается к STUN для сбора WebRTC-кандидатов, а также обращается к edge-диагностике claude.ai, www.anthropic.com, api.anthropic.com и сервису IPv6-запросов. При проверке эндпоинтов содержимое ответов не читается."]] },
-    faq: { title: "FAQ по среде Claude и риску блокировки", items: [["Почему аккаунт Claude может быть заблокирован?", "Кратко о частых причинах блокировок и рисках из-за конфликтного профиля среды."], ["Какие причины блокировки встречаются чаще?", "IP, регион, язык, часовой пояс, способ оплаты и другие сигналы риска."], ["Как работает риск-механика Claude?", "Объяснение ограничений аккаунта через сигналы среды, региона и поведения."], ["Можно ли разблокировать аккаунт Claude?", "Что проверить перед обращением в поддержку и как оценить проблемы среды."], ["Возвращают ли деньги после блокировки?", "Что влияет на возврат: подписка, платежный канал и состояние аккаунта."], ["Как зарегистрировать аккаунт Claude?", "Перед регистрацией стоит проверить среду, чтобы снизить риск ошибок проверки и подписки."], ["Как подать заявку на Claude API?", "Перед API-заявкой проверьте IP, регион и согласованность окружения."], ["Как получить Claude Code?", "Кратко о рисках среды для Claude Code и подписки Claude Pro."]] },
+    faq: { title: "FAQ по среде Claude и риску блокировки", items: ruFaqs },
     footer: { title: "Что такое CheckCC?", desc: "CheckCC — инструмент проверки цифрового профиля среды Claude: региональные признаки, риск блокировки, сетевой выход и браузерные признаки среды.", infoTitle: "Общая информация", feature: "Функция: проверка среды Claude и отчет о риске", note: "Примечание: результаты справочные, политики Claude и поддерживаемые регионы могут меняться", credit: "Проект основан на коде yacuo/check-cc под лицензией MIT.", related: "Сторонний инструмент" },
     detector: { title: "Найденные сигналы проверки", signalCount: (count, done) => done ? `Найдено ${count} сигналов` : `Показано ${count} пунктов`, signalHitSummary: (hits, total) => `Совпало ${hits} из ${total}`, targetTitle: "Выберите цель проверки", targetDesc: "По умолчанию используется автоопределение; можно выбрать Китай или Россию. Гонконг определяется отдельным профилем.", cardTags: ["Проверка среды Claude", "Риск блокировки Claude", "Проверка окружения"], loadingText: "Выполняется многофакторная проверка...", idleCta: "Проверить среду Claude", idleReport: "Нажмите, чтобы создать отчет о риске среды Claude", riskPrefix: "риск среды" },
   },
